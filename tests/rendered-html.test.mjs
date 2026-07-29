@@ -39,6 +39,11 @@ test("front-end defines the requested product routes", async () => {
   assert.match(app, /当前灵感附近/);
   assert.match(app, /inspirations=/);
   assert.match(api, /VITE_API_BASE_URL/);
+  assert.match(api, /type InspirationRecord/);
+  assert.match(api, /\/api\/inspirations/);
+  assert.match(api, /listInspirations/);
+  assert.match(app, /SQLite 已同步/);
+  assert.match(app, /mapInspirationRecord/);
 });
 
 test("back-end exposes the split deployment API contract", async () => {

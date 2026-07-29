@@ -6,6 +6,12 @@ export type AnalysisTag = {
   detail: string;
 };
 
+export type BriefAttachment = {
+  type: "audio" | "image" | "video" | "note";
+  name: string;
+  uploadId?: string;
+};
+
 export type BriefRequest = {
   projectId: string;
   mode: InputMode;
@@ -33,7 +39,31 @@ export type DemoTaskResponse = {
   message: string;
 };
 
+export type InspirationRecord = {
+  id: string;
+  projectId: string;
+  title: string;
+  content: string;
+  attachments: BriefAttachment[];
+  tags: AnalysisTag[];
+  createdAt: string;
+};
+
+export type ProjectRecord = {
+  id: string;
+  title: string;
+  subtitle: string;
+  status: string;
+  progress: number;
+  owner: string;
+  updated: string;
+};
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "";
+
+export function hasApiConnection() {
+  return Boolean(API_BASE_URL);
+}
 
 const defaultFlow = [
   "浏览器录音 / 上传",
@@ -128,6 +158,32 @@ export async function createDemoTask(payload: DemoTaskRequest): Promise<DemoTask
   }
 
   return response.json() as Promise<DemoTaskResponse>;
+}
+
+export async function listInspirations(): Promise<InspirationRecord[]> {
+  if (!API_BASE_URL) {
+    return [];
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/inspirations`);
+  if (!response.ok) {
+    throw new Error(`Inspirations request failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<InspirationRecord[]>;
+}
+
+export async function listProjects(): Promise<ProjectRecord[]> {
+  if (!API_BASE_URL) {
+    return [];
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/projects`);
+  if (!response.ok) {
+    throw new Error(`Projects request failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<ProjectRecord[]>;
 }
 
 export function getApiConnectionLabel() {

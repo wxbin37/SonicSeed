@@ -923,6 +923,14 @@ h3 {
   background: var(--divider);
 }
 
+.library-sync-state {
+  padding: 4px 8px;
+  border-radius: var(--corner-round);
+  background: rgba(0, 242, 133, 0.08);
+  color: var(--button-highlight);
+  white-space: nowrap;
+}
+
 .inspiration-grid {
   display: grid;
   align-items: start;
@@ -1046,8 +1054,12 @@ h3 {
 }
 
 .audio-preview small {
+  max-width: 86px;
+  overflow: hidden;
   color: var(--text-300);
   font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .mini-play {
