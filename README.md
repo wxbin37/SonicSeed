@@ -1,39 +1,92 @@
 # 声因 Sonic Seed
 
-声因是一款面向音乐创作者的 AI 灵感管理与 Demo 创作工具原型。
+声因是一款面向音乐创作者的 AI 灵感管理与 Demo 协作创作工具。
 
-当前网页重构为三页式产品原型：
+本仓库已重构为前后端分离：
 
-- 入口页：仅保留居中标题、“灵感库”和“开始创作”两个主按钮
-- 开始创作页：左侧创作历史列表，右侧 Codex 风格创作工作台
-- AI 分析后台：实时沉淀主题、情绪、场景、适用位置和数据流状态
-- Demo 成品区：保留可播放版本、试听反馈、协作进度和新分支入口
-- 灵感库页：管理旋律、歌词、画面、声音等个人音乐基因
+- `frontend/`：Vite React 前端，部署到 Netlify
+- `backend/`：Python FastAPI 后端，部署到 Render / Railway / Fly.io / Cloud Run / VPS
 
 核心链路：
 
 ```text
-浏览器录音/上传 -> 应用后端 -> 音频校验与转码 -> 旋律分析 -> DeepSeek Brief -> Mureka/MiniMax -> 数据库与音频存储 -> 分享页
+浏览器录音/上传 -> Python 后端 -> 音频校验与转码 -> 旋律分析 -> DeepSeek Brief -> Mureka/MiniMax -> 数据库与音频存储 -> 分享页
 ```
 
-## 运行
+## 本地运行
+
+前端：
 
 ```bash
 pnpm install
 pnpm run dev
-pnpm run build
 ```
 
-## Netlify 部署
+后端：
 
-项目已包含 `netlify.toml`，在 Netlify 导入 GitHub 仓库后使用以下设置：
+```bash
+cd backend
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload --port 8000
+```
 
-- Build command: `pnpm run build:netlify`
-- Publish directory: `.next`
+前端连接后端：
+
+```bash
+cd frontend
+echo "VITE_API_BASE_URL=http://localhost:8000" > .env.local
+```
+
+如果不配置 `VITE_API_BASE_URL`，前端会使用本地模拟分析，便于先验收界面。
+
+## Netlify 前端部署
+
+仓库根目录已经配置 `netlify.toml`：
+
+- Base directory: `frontend`
+- Build command: `pnpm build`
+- Publish directory: `dist`
 - Node version: `22`
+
+在 Netlify 的环境变量里添加：
+
+```text
+VITE_API_BASE_URL=https://your-python-api.example.com
+```
+
+## Python 后端部署
+
+后端入口：
+
+```text
+backend/app/main.py
+```
+
+部署平台启动命令：
+
+```bash
+uvicorn app.main:app --host 0.0.0.0 --port $PORT
+```
+
+需要配置的环境变量见：
+
+```text
+backend/.env.example
+```
+
+当前后端已提供最小 API 契约：
+
+- `GET /api/health`
+- `GET /api/projects`
+- `POST /api/brief`
+- `POST /api/uploads`
+- `POST /api/demo-tasks`
+- `GET /api/demo-tasks/{task_id}`
 
 ## 设计约束
 
-页面按同目录 `design.md` 的 QQ 音乐 token 落地：深色背景、实色卡片、品牌绿高亮、PingFang SC 字体栈、20px 大容器圆角、12px 间距节奏和柔和阴影。
+页面继续按同目录 `design.md` 的 QQ 音乐 token 落地：深色背景、实色卡片、品牌绿高亮、PingFang SC 字体栈、20px 大容器圆角、12px 间距节奏和柔和阴影。
 
 视觉实现不使用渐变背景、不使用玻璃态、不使用 emoji 图标；界面图标来自 `lucide-react`。

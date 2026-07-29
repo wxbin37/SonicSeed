@@ -1,10 +1,7 @@
-"use client";
-
 import { useMemo, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   ArrowLeft,
-  AudioLines,
   Bot,
   CheckCircle2,
   Clock3,
@@ -13,10 +10,12 @@ import {
   HardDrive,
   Headphones,
   Image as ImageIcon,
+  Library,
   Link2,
   ListMusic,
   MessageCircle,
   Mic,
+  Music2,
   Paperclip,
   Play,
   Plus,
@@ -30,8 +29,14 @@ import {
   Upload,
   UsersRound,
 } from "lucide-react";
-
-type InputMode = "dialogue" | "text" | "humming" | "image" | "voice";
+import {
+  analyzeInspiration,
+  createDemoTask,
+  getApiConnectionLabel,
+  type AnalysisTag,
+  type BriefResponse,
+  type InputMode,
+} from "./api";
 
 type InputSource = {
   id: InputMode;
@@ -39,6 +44,23 @@ type InputSource = {
   icon: LucideIcon;
   placeholder: string;
   hint: string;
+};
+
+type Project = {
+  id: string;
+  title: string;
+  subtitle: string;
+  status: string;
+  progress: number;
+  owner: string;
+  updated: string;
+};
+
+type DemoVersion = {
+  title: string;
+  meta: string;
+  note: string;
+  status: string;
 };
 
 const inputSources: InputSource[] = [
@@ -79,7 +101,7 @@ const inputSources: InputSource[] = [
   },
 ];
 
-const projects = [
+const projects: Project[] = [
   {
     id: "city-leave",
     title: "离开城市之前",
@@ -118,7 +140,7 @@ const projects = [
   },
 ];
 
-const analysisTags = [
+const initialTags: AnalysisTag[] = [
   {
     label: "主题",
     value: "离开一座生活很久的城市",
@@ -152,7 +174,16 @@ const dataFlow = [
   "分享页",
 ];
 
-const demos = [
+const stack = [
+  { label: "前端", value: "Vite React + MediaRecorder", icon: Upload },
+  { label: "后端", value: "Python FastAPI 服务", icon: Server },
+  { label: "音频", value: "FFmpeg 转码 + YIN/pYIN", icon: Music2 },
+  { label: "数据", value: "SQLite -> PostgreSQL", icon: Database },
+  { label: "文件", value: "本地卷 -> COS / OSS", icon: HardDrive },
+  { label: "状态", value: "轮询，可选 SSE", icon: RefreshCw },
+];
+
+const initialDemos: DemoVersion[] = [
   {
     title: "Demo V1",
     meta: "都市流行 · 76 BPM · 钢琴与电子氛围",
@@ -173,20 +204,65 @@ const demos = [
   },
 ];
 
-const stack = [
-  { label: "前端", value: "Next.js + MediaRecorder", icon: Upload },
-  { label: "后端", value: "Node / Python 服务端代理", icon: Server },
-  { label: "音频", value: "FFmpeg 转码 + YIN/pYIN", icon: AudioLines },
-  { label: "数据", value: "SQLite -> PostgreSQL", icon: Database },
-  { label: "文件", value: "本地卷 -> COS / OSS", icon: HardDrive },
-  { label: "状态", value: "轮询，可选 SSE", icon: RefreshCw },
+const libraryCards = [
+  {
+    type: "旋律",
+    title: "凌晨副歌哼唱01",
+    meta: "BPM 76 · A小调 · Hook",
+    status: "可进入编曲",
+    icon: Music2,
+  },
+  {
+    type: "歌词",
+    title: "像明天还会见",
+    meta: "告别 · 城市夜晚 · 主歌结尾",
+    status: "待发展",
+    icon: Type,
+  },
+  {
+    type: "画面",
+    title: "雨夜出租车照片",
+    meta: "霓虹 · 离开深圳 · 克制",
+    status: "已关联 Demo",
+    icon: ImageIcon,
+  },
+  {
+    type: "声音",
+    title: "风噪与站台广播",
+    meta: "现场采样 · Intro 参考",
+    status: "待清理",
+    icon: Radio,
+  },
 ];
 
-export default function CreatePage() {
+function HomePage() {
+  return (
+    <main className="home-shell" aria-label="声因入口">
+      <section className="entry-panel" aria-label="主入口">
+        <h1>声因</h1>
+        <nav className="home-actions" aria-label="页面入口">
+          <a className="entrance-button secondary" href="/library">
+            <Library size={20} />
+            灵感库
+          </a>
+          <a className="entrance-button primary" href="/create">
+            <Play size={20} />
+            开始创作
+          </a>
+        </nav>
+      </section>
+    </main>
+  );
+}
+
+function CreatePage() {
   const [activeMode, setActiveMode] = useState<InputMode>("humming");
   const [activeProjectId, setActiveProjectId] = useState(projects[0].id);
   const [draft, setDraft] = useState("我们把告别说得像明天还会见。");
-  const [submitted, setSubmitted] = useState(false);
+  const [analysisTags, setAnalysisTags] = useState<AnalysisTag[]>(initialTags);
+  const [brief, setBrief] = useState<BriefResponse | null>(null);
+  const [analysisState, setAnalysisState] = useState("等待输入");
+  const [demos, setDemos] = useState<DemoVersion[]>(initialDemos);
 
   const activeSource = useMemo(
     () => inputSources.find((source) => source.id === activeMode) ?? inputSources[2],
@@ -197,6 +273,58 @@ export default function CreatePage() {
     () => projects.find((project) => project.id === activeProjectId) ?? projects[0],
     [activeProjectId],
   );
+
+  async function handleAnalyze() {
+    setAnalysisState("分析中");
+    try {
+      const nextBrief = await analyzeInspiration({
+        projectId: activeProject.id,
+        mode: activeMode,
+        content: draft,
+      });
+
+      setBrief(nextBrief);
+      setAnalysisTags(nextBrief.tags);
+      setAnalysisState(nextBrief.source === "backend" ? "后端已同步" : "本地模拟完成");
+    } catch {
+      setAnalysisState("后端请求失败，保留当前标签");
+    }
+  }
+
+  async function handleCreateDemo() {
+    const referenceBrief =
+      brief ??
+      ({
+        source: "local",
+        title: activeProject.title,
+        summary: "使用当前工作台内容生成 Demo 任务。",
+        tags: analysisTags,
+        suggestedStyle: "都市流行 / 中慢速 / 轻鼓组",
+        dataFlow,
+      } satisfies BriefResponse);
+
+    setAnalysisState("创建 Demo 任务");
+    try {
+      const task = await createDemoTask({
+        projectId: activeProject.id,
+        prompt: draft,
+        referenceBrief,
+      });
+
+      setDemos((current) => [
+        {
+          title: `Demo ${current.length + 1}`,
+          meta: `任务 ${task.taskId} · ${task.status}`,
+          note: task.message,
+          status: "新任务",
+        },
+        ...current,
+      ]);
+      setAnalysisState("Demo 任务已创建");
+    } catch {
+      setAnalysisState("Demo 任务创建失败");
+    }
+  }
 
   return (
     <main className="create-shell" aria-label="开始创作">
@@ -266,7 +394,7 @@ export default function CreatePage() {
               </div>
               <span className="status-pill">
                 <Bot size={14} />
-                AI 分析后台
+                {analysisState}
               </span>
             </div>
 
@@ -281,8 +409,8 @@ export default function CreatePage() {
                   DeepSeek Brief
                 </span>
                 <p>
-                  已保留原始灵感，并拆成歌词、旋律参考、情绪曲线和可执行编曲方向。
-                  {submitted ? " 最新输入已进入标签更新队列。" : " 输入后会实时更新右侧分析。"}
+                  {brief?.summary ??
+                    "已保留原始灵感，并拆成歌词、旋律参考、情绪曲线和可执行编曲方向。输入后会实时更新右侧分析。"}
                 </p>
               </article>
             </div>
@@ -317,11 +445,11 @@ export default function CreatePage() {
                   <Paperclip size={16} />
                   上传素材
                 </button>
-                <button
-                  className="send-button"
-                  onClick={() => setSubmitted(true)}
-                  type="button"
-                >
+                <button className="utility-button" onClick={handleCreateDemo} type="button">
+                  <Headphones size={16} />
+                  创建 Demo 任务
+                </button>
+                <button className="send-button" onClick={handleAnalyze} type="button">
                   <Send size={16} />
                   发送给 AI 分析
                 </button>
@@ -338,6 +466,11 @@ export default function CreatePage() {
               <span className="analysis-dot" aria-hidden="true" />
             </div>
 
+            <span className="backend-chip">
+              <Server size={14} />
+              {getApiConnectionLabel()}
+            </span>
+
             <div className="analysis-list">
               {analysisTags.map((item) => (
                 <article className="analysis-item" key={item.label}>
@@ -351,7 +484,7 @@ export default function CreatePage() {
             <div className="flow-panel" aria-label="数据流">
               <h3>数据流</h3>
               <ol>
-                {dataFlow.map((step) => (
+                {(brief?.dataFlow ?? dataFlow).map((step) => (
                   <li key={step}>
                     <CheckCircle2 size={14} />
                     {step}
@@ -385,7 +518,7 @@ export default function CreatePage() {
 
             <div className="demo-list">
               {demos.map((demo) => (
-                <article className="demo-item" key={demo.title}>
+                <article className="demo-item" key={`${demo.title}-${demo.meta}`}>
                   <button className="play-button" type="button" aria-label={`播放 ${demo.title}`}>
                     <Play size={18} />
                   </button>
@@ -410,4 +543,63 @@ export default function CreatePage() {
       </section>
     </main>
   );
+}
+
+function LibraryPage() {
+  return (
+    <main className="library-shell" aria-label="灵感库">
+      <header className="studio-topbar">
+        <a className="icon-link" href="/" aria-label="返回首页">
+          <ArrowLeft size={19} />
+        </a>
+        <h1>灵感库</h1>
+        <a className="icon-link" href="/create" aria-label="开始创作">
+          <Play size={18} />
+        </a>
+      </header>
+
+      <section className="library-hero">
+        <div>
+          <p>个人音乐基因库</p>
+          <h2>128 条灵感，42 条已建立关系，9 个可播放 Demo。</h2>
+        </div>
+        <div className="tag-cluster">
+          {["告别", "R&B", "城市夜晚", "Hook", "雨夜"].map((tag) => (
+            <span key={tag}>
+              <Tags size={12} />
+              {tag}
+            </span>
+          ))}
+        </div>
+      </section>
+
+      <section className="library-grid">
+        {libraryCards.map(({ type, title, meta, status, icon: Icon }) => (
+          <article className="library-tile" key={title}>
+            <span className="tile-icon">
+              <Icon size={21} />
+            </span>
+            <p>{type}</p>
+            <h3>{title}</h3>
+            <span>{meta}</span>
+            <strong>{status}</strong>
+          </article>
+        ))}
+      </section>
+    </main>
+  );
+}
+
+export default function App() {
+  const pathname = window.location.pathname;
+
+  if (pathname.startsWith("/create")) {
+    return <CreatePage />;
+  }
+
+  if (pathname.startsWith("/library")) {
+    return <LibraryPage />;
+  }
+
+  return <HomePage />;
 }
