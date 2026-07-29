@@ -24,8 +24,11 @@ test("front-end defines the requested product routes", async () => {
   assert.match(app, /音乐基因设置/);
   assert.match(app, /handleApplyCreationSetup/);
   assert.match(app, /toggleCreationSeed/);
+  assert.match(app, /创作版本/);
   assert.match(app, /生成试听版/);
   assert.match(app, /版本树/);
+  assert.match(app, /const \[creationModalOpen, setCreationModalOpen\] = useState\(false\)/);
+  assert.doesNotMatch(app, /useState\(\(\) => !getShareToken\(\)\)/);
   assert.match(app, /可上传 MP3\/M4A\/WAV\/WebM、图片、视频/);
   assert.match(app, /PanelLeftClose/);
   assert.match(app, /PanelLeftOpen/);

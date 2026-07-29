@@ -554,7 +554,7 @@ function CreatePage() {
   const [libraryCards, setLibraryCards] = useState<InspirationCard[]>(() =>
     hasApiConnection() ? [] : readStorage<InspirationCard[]>(STORAGE_KEYS.library, []),
   );
-  const [creationModalOpen, setCreationModalOpen] = useState(() => !getShareToken());
+  const [creationModalOpen, setCreationModalOpen] = useState(false);
   const [creationTab, setCreationTab] = useState<"creation" | "versionTree">("creation");
   const [creationPrompt, setCreationPrompt] = useState(defaultCreationPrompt);
   const [creationSeeds, setCreationSeeds] = useState<CreationSeed[]>(defaultCreationSeeds);
@@ -1634,7 +1634,7 @@ function CreatePage() {
                   <article className="empty-state">
                     <ListMusic size={18} />
                     <strong>还没有创作历史</strong>
-                    <p>发送内容、加入灵感库或生成版本后会自动创建。</p>
+                    <p>发送内容、加入灵感库或创作版本后会自动创建。</p>
                   </article>
                 )}
               </div>
@@ -1794,9 +1794,9 @@ function CreatePage() {
                       <Library size={16} />
                       加入灵感库
                     </button>
-                    <button className="utility-button" onClick={() => void handleGenerateVersion()} type="button">
+                    <button className="utility-button" onClick={() => setCreationModalOpen(true)} type="button">
                       <Headphones size={16} />
-                      生成版本
+                      创作版本
                     </button>
                     <button className="send-button" disabled={!canSubmit} onClick={() => void handleSend()} type="button">
                       <Send size={16} />
