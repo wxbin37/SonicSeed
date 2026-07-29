@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 
 
 InputMode = Literal["dialogue", "text", "humming", "image", "voice"]
-AttachmentType = Literal["audio", "image", "note"]
+AttachmentType = Literal["audio", "image", "video", "note"]
 
 
 class AnalysisTag(BaseModel):

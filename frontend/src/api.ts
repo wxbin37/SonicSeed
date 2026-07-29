@@ -7,7 +7,7 @@ export type AnalysisTag = {
 };
 
 export type BriefAttachment = {
-  type: "audio" | "image" | "note";
+  type: "audio" | "image" | "video" | "note";
   name: string;
   uploadId?: string;
 };
