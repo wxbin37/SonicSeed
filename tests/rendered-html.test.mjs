@@ -53,6 +53,8 @@ test("front-end defines the requested product routes", async () => {
   assert.match(app, /listInspirations/);
   assert.match(app, /listDemoTasks/);
   assert.match(app, /versionFromTask/);
+  assert.match(app, /formatDemoTaskMessage/);
+  assert.match(app, /生成失败：/);
   assert.match(app, /还没有创作历史/);
   assert.doesNotMatch(app, /凌晨副歌哼唱01/);
   assert.doesNotMatch(app, /雨夜出租车照片/);
@@ -156,6 +158,8 @@ test("back-end calls MiniMax only through server-side configuration", async () =
   assert.match(services, /music-cover-free/);
   assert.match(services, /extract_minimax_lyrics/);
   assert.match(services, /generated_lyrics/);
+  assert.match(services, /normalize_minimax_error_message/);
+  assert.match(services, /余额不足/);
   assert.match(services, /music-3\.0-free/);
   assert.match(services, /未配置 MINIMAX_API_KEY/);
   assert.doesNotMatch(services, /fallback|mock|固定样例/i);

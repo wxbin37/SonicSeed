@@ -250,6 +250,22 @@ def extract_minimax_lyrics(result: dict[str, object], default_lyrics: str) -> st
     return default_lyrics
 
 
+def normalize_minimax_error_message(message: object) -> str:
+    text = str(message or "").strip()
+    if not text:
+        return "MiniMax 返回失败状态。"
+
+    lowered = text.lower()
+    if "insufficient balance" in lowered:
+        return "MiniMax 余额不足，请检查账户额度或充值后重试。"
+    if "rate limit" in lowered or "too many requests" in lowered:
+        return "MiniMax 请求过于频繁，请稍后重试。"
+    if "unauthorized" in lowered or "invalid api key" in lowered:
+        return "MiniMax API Key 无效，请检查后端配置。"
+
+    return text
+
+
 def call_minimax_music(payload: DemoTaskRequest) -> DemoTaskResponse:
     api_key = os.getenv("MINIMAX_API_KEY", "").strip()
     if not api_key:
@@ -325,7 +341,7 @@ def call_minimax_music(payload: DemoTaskRequest) -> DemoTaskResponse:
         return DemoTaskResponse(
             taskId=task_id,
             status="failed",
-            message=base_resp.get("status_msg") or "MiniMax 返回失败状态。",
+            message=normalize_minimax_error_message(base_resp.get("status_msg")),
             progress=0,
             lyrics=lyrics,
             provider="MiniMax",

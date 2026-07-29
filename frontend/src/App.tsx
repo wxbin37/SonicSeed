@@ -306,6 +306,17 @@ function versionFromTask(task: DemoTaskResponse, index: number): DemoVersion {
   };
 }
 
+function formatDemoTaskMessage(task: DemoTaskResponse) {
+  const statusPrefix =
+    task.status === "succeeded" ? "版本任务完成" : task.status === "failed" ? `生成失败：${task.message}` : task.message;
+
+  if (!task.lyrics) {
+    return statusPrefix;
+  }
+
+  return `${statusPrefix}\n\n歌词上下文：\n${task.lyrics}`;
+}
+
 function getSharedProjectId() {
   if (typeof window === "undefined") {
     return "";
@@ -1368,12 +1379,12 @@ function CreatePage() {
       setMessages((current) => [
         ...current,
         {
-          id: `ai_version_${Date.now()}`,
-          role: "ai",
-          label: "AI",
-          text: task.lyrics ? `版本任务返回歌词：\n${task.lyrics}` : task.message,
-        },
-      ]);
+              id: `ai_version_${Date.now()}`,
+              role: "ai",
+              label: "AI",
+              text: formatDemoTaskMessage(task),
+            },
+          ]);
       if (task.status === "queued" || task.status === "running") {
         void pollVersionTask(task, versionId);
       } else {
@@ -1442,7 +1453,7 @@ function CreatePage() {
                 id: `ai_lyrics_${Date.now()}`,
                 role: "ai",
                 label: "AI",
-                text: `生成歌词：\n${latestTask.lyrics}`,
+                text: formatDemoTaskMessage(latestTask),
               },
             ]);
           }
