@@ -2,7 +2,7 @@ import os
 from typing import Optional
 from uuid import uuid4
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import BackgroundTasks, FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
 from .env_loader import load_local_env
@@ -28,7 +28,6 @@ from .schemas import (
 from .services import (
     build_brief,
     create_share_link,
-    create_demo_task,
     create_inspiration,
     get_collaboration_session,
     get_demo_task,
@@ -38,6 +37,8 @@ from .services import (
     list_demo_tasks as read_demo_tasks,
     list_inspirations,
     list_projects as read_projects,
+    queue_demo_task,
+    run_queued_demo_task,
     update_collaboration_session,
     save_project_workspace,
     upsert_project,
@@ -201,8 +202,10 @@ async def upload_audio(file: UploadFile = File(...)) -> UploadResponse:
 
 
 @app.post("/api/demo-tasks", response_model=DemoTaskResponse)
-def submit_demo_task(payload: DemoTaskRequest) -> DemoTaskResponse:
-    return create_demo_task(payload)
+def submit_demo_task(payload: DemoTaskRequest, background_tasks: BackgroundTasks) -> DemoTaskResponse:
+    task = queue_demo_task(payload)
+    background_tasks.add_task(run_queued_demo_task, task.taskId, payload)
+    return task
 
 
 @app.get("/api/demo-tasks", response_model=list[DemoTaskResponse])

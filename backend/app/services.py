@@ -275,10 +275,14 @@ def normalize_minimax_error_message(message: object) -> str:
 
 
 def call_minimax_music(payload: DemoTaskRequest) -> DemoTaskResponse:
+    return call_minimax_music_with_task_id(payload, f"task_{uuid4().hex[:10]}")
+
+
+def call_minimax_music_with_task_id(payload: DemoTaskRequest, task_id: str) -> DemoTaskResponse:
     api_key = os.getenv("MINIMAX_API_KEY", "").strip()
     if not api_key:
         return DemoTaskResponse(
-            taskId=f"task_{uuid4().hex[:10]}",
+            taskId=task_id,
             status="failed",
             message="未配置 MINIMAX_API_KEY，后端没有调用音乐模型。",
             progress=0,
@@ -287,7 +291,7 @@ def call_minimax_music(payload: DemoTaskRequest) -> DemoTaskResponse:
         )
     if not is_ascii_token(api_key):
         return DemoTaskResponse(
-            taskId=f"task_{uuid4().hex[:10]}",
+            taskId=task_id,
             status="failed",
             message="MINIMAX_API_KEY 不是有效的 API Key，请检查是否仍是中文占位符或复制了说明文字。",
             progress=0,
@@ -302,7 +306,6 @@ def call_minimax_music(payload: DemoTaskRequest) -> DemoTaskResponse:
         "MINIMAX_AUDIO_MODEL" if audio_base64 else "MINIMAX_MUSIC_MODEL",
         DEFAULT_MINIMAX_AUDIO_MODEL if audio_base64 else DEFAULT_MINIMAX_MUSIC_MODEL,
     )
-    task_id = f"task_{uuid4().hex[:10]}"
     request_body: dict[str, object] = {
         "model": model,
         "prompt": build_minimax_prompt(payload, model),
@@ -387,6 +390,66 @@ def call_minimax_music(payload: DemoTaskRequest) -> DemoTaskResponse:
 def create_demo_task(payload: DemoTaskRequest) -> DemoTaskResponse:
     result = call_minimax_music(payload)
     ensure_project(payload.projectId, payload.referenceBrief.title, "生成版本")
+    return store_demo_task_record(payload, result)
+
+
+def queue_demo_task(payload: DemoTaskRequest) -> DemoTaskResponse:
+    task_id = f"task_{uuid4().hex[:10]}"
+    result = DemoTaskResponse(
+        taskId=task_id,
+        status="queued",
+        message="任务已进入后台队列，正在准备生成参数。",
+        progress=6,
+        lyrics=build_lyrics(payload.prompt, payload.lyrics),
+        provider="MiniMax",
+    )
+    ensure_project(payload.projectId, payload.referenceBrief.title, "生成版本")
+    return store_demo_task_record(payload, result)
+
+
+def run_queued_demo_task(task_id: str, payload: DemoTaskRequest) -> DemoTaskResponse:
+    lyrics = build_lyrics(payload.prompt, payload.lyrics)
+    audio_base64 = encode_first_audio_attachment(payload)
+    model = os.getenv(
+        "MINIMAX_AUDIO_MODEL" if audio_base64 else "MINIMAX_MUSIC_MODEL",
+        DEFAULT_MINIMAX_AUDIO_MODEL if audio_base64 else DEFAULT_MINIMAX_MUSIC_MODEL,
+    )
+
+    store_demo_task_record(
+        payload,
+        DemoTaskResponse(
+            taskId=task_id,
+            status="running",
+            message=f"正在整理 Prompt 并连接 MiniMax（模型：{model}）。",
+            progress=18,
+            lyrics=lyrics,
+            provider="MiniMax",
+        ),
+    )
+
+    try:
+        store_demo_task_record(
+            payload,
+            DemoTaskResponse(
+                taskId=task_id,
+                status="running",
+                message=f"请求已发送给 MiniMax，正在等待音频生成（模型：{model}）。",
+                progress=42,
+                lyrics=lyrics,
+                provider="MiniMax",
+            ),
+        )
+        result = call_minimax_music_with_task_id(payload, task_id)
+    except Exception as error:
+        result = DemoTaskResponse(
+            taskId=task_id,
+            status="failed",
+            message=f"后台生成任务异常：{error}",
+            progress=0,
+            lyrics=lyrics,
+            provider="MiniMax",
+        )
+
     return store_demo_task_record(payload, result)
 
 

@@ -48,6 +48,8 @@ test("front-end defines the requested product routes", async () => {
   assert.match(app, /joinShareLink/);
   assert.match(app, /updateCollaborationSession/);
   assert.match(app, /pollVersionTask/);
+  assert.match(app, /attempt < 90/);
+  assert.match(app, /后台仍在生成/);
   assert.match(app, /listProjects/);
   assert.match(app, /saveProject/);
   assert.match(app, /listInspirations/);
@@ -84,6 +86,7 @@ test("back-end exposes the split deployment API contract", async () => {
   ]);
 
   assert.match(main, /FastAPI/);
+  assert.match(main, /BackgroundTasks/);
   assert.match(main, /load_local_env/);
   assert.match(main, /@app\.get\("\/api\/health"/);
   assert.match(main, /@app\.get\("\/api\/projects"/);
@@ -100,6 +103,7 @@ test("back-end exposes the split deployment API contract", async () => {
   assert.match(main, /@app\.post\("\/api\/inspirations"/);
   assert.match(main, /@app\.post\("\/api\/uploads"/);
   assert.match(main, /@app\.post\("\/api\/demo-tasks"/);
+  assert.match(main, /background_tasks\.add_task/);
   assert.match(main, /@app\.get\("\/api\/demo-tasks"/);
   assert.match(main, /@app\.get\("\/api\/demo-tasks\/\{task_id\}"/);
   assert.match(schemas, /class BriefRequest/);
@@ -147,6 +151,8 @@ test("back-end calls MiniMax only through server-side configuration", async () =
   ]);
 
   assert.match(services, /MINIMAX_API_KEY/);
+  assert.match(services, /queue_demo_task/);
+  assert.match(services, /run_queued_demo_task/);
   assert.match(services, /is_ascii_token/);
   assert.match(services, /中文占位符/);
   assert.match(services, /\/v1\/music_generation/);

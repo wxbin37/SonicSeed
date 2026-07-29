@@ -1379,12 +1379,12 @@ function CreatePage() {
       setMessages((current) => [
         ...current,
         {
-              id: `ai_version_${Date.now()}`,
-              role: "ai",
-              label: "AI",
-              text: formatDemoTaskMessage(task),
-            },
-          ]);
+          id: `ai_version_${Date.now()}`,
+          role: "ai",
+          label: "AI",
+          text: formatDemoTaskMessage(task),
+        },
+      ]);
       if (task.status === "queued" || task.status === "running") {
         void pollVersionTask(task, versionId);
       } else {
@@ -1420,12 +1420,14 @@ function CreatePage() {
 
   async function pollVersionTask(task: DemoTaskResponse, versionId: string) {
     let latestTask = task;
-    for (let attempt = 0; attempt < 6; attempt += 1) {
-      await new Promise((resolve) => window.setTimeout(resolve, 1400));
+    for (let attempt = 0; attempt < 90; attempt += 1) {
+      const delayMs = Math.min(5200, 1200 + attempt * 220);
+      await new Promise((resolve) => window.setTimeout(resolve, delayMs));
 
       try {
         latestTask = await getDemoTask(latestTask.taskId);
         const statusLabel = getTaskStatusLabel(latestTask.status);
+        const progressLabel = latestTask.progress === undefined ? "" : ` ${latestTask.progress}%`;
 
         setVersions((current) =>
           current.map((version) =>
@@ -1442,6 +1444,7 @@ function CreatePage() {
               : version,
           ),
         );
+        setAnalysisState(`${statusLabel}${progressLabel}`);
 
         if (latestTask.status === "succeeded" || latestTask.status === "failed") {
           setAnalysisState(statusLabel);
@@ -1463,6 +1466,22 @@ function CreatePage() {
         setAnalysisState("版本状态暂时不可用");
         break;
       }
+    }
+
+    if (latestTask.status === "queued" || latestTask.status === "running") {
+      setAnalysisState("后台仍在生成，可稍后回到创作历史查看");
+      setVersions((current) =>
+        current.map((version) =>
+          version.id === versionId
+            ? {
+                ...version,
+                note: "后台仍在等待模型返回，稍后可从创作历史继续查看。",
+                status: "后台生成中",
+                progress: Math.max(version.progress, latestTask.progress ?? 64),
+              }
+            : version,
+        ),
+      );
     }
   }
 
