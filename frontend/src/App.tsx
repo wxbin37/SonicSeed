@@ -1,9 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
-import type { LucideIcon } from "lucide-react";
 import {
   ArrowLeft,
   Bot,
-  Clock3,
   Copy,
   FileAudio,
   Headphones,
@@ -12,22 +10,18 @@ import {
   Link2,
   ListMusic,
   Loader2,
-  Music2,
   PanelLeftClose,
   PanelLeftOpen,
   Paperclip,
   Play,
   Plus,
-  Radio,
   Send,
   Server,
   Share2,
   Tags,
   Type,
-  Upload,
   UsersRound,
   Video,
-  Wand2,
   X,
 } from "lucide-react";
 import {
@@ -35,23 +29,22 @@ import {
   createDemoTask,
   getApiConnectionLabel,
   getDemoTask,
+  hasApiConnection,
+  listInspirations,
+  listProjects,
+  saveInspiration,
+  saveProject,
   uploadAudio,
   type AnalysisTag,
   type BriefAttachment,
   type BriefResponse,
   type DemoTaskResponse,
+  type InspirationCard,
   type InputMode,
+  type ProjectRecord,
 } from "./api";
 
-type Project = {
-  id: string;
-  title: string;
-  subtitle: string;
-  status: string;
-  progress: number;
-  owner: string;
-  updated: string;
-};
+type Project = ProjectRecord;
 
 type LocalAttachment = BriefAttachment & {
   id: string;
@@ -77,6 +70,7 @@ type DemoVersion = {
   progress: number;
   taskId?: string;
   audioUrl?: string;
+  lyrics?: string;
 };
 
 type CollaborationEvent = {
@@ -86,144 +80,43 @@ type CollaborationEvent = {
   time: string;
 };
 
-const initialProjects: Project[] = [
-  {
-    id: "city-leave",
-    title: "离开城市之前",
-    subtitle: "副歌哼唱 + 两句歌词",
-    status: "正在改 V2",
-    progress: 68,
-    owner: "我",
-    updated: "2分钟前",
-  },
-  {
-    id: "midnight-hook",
-    title: "凌晨副歌接力",
-    subtitle: "合作方正在改 Hook",
-    status: "等待歌词确认",
-    progress: 42,
-    owner: "林雨",
-    updated: "12分钟前",
-  },
-  {
-    id: "taxi-rain",
-    title: "雨夜出租车 Demo",
-    subtitle: "V1 试听反馈沉淀",
-    status: "准备生成分支",
-    progress: 86,
-    owner: "陈舟",
-    updated: "今天 15:20",
-  },
-  {
-    id: "station-noise",
-    title: "站台采样 Intro",
-    subtitle: "声音卡待清理",
-    status: "音频预处理中",
-    progress: 24,
-    owner: "我",
-    updated: "昨天 22:08",
-  },
-];
-
 const initialMessages: ChatMessage[] = [
-  {
-    id: "msg_1",
-    role: "user",
-    label: "我",
-    text: "我们把告别说得像明天还会见。",
-  },
   {
     id: "msg_2",
     role: "ai",
     label: "AI",
-    text: "这句适合放在副歌 Hook 落点。可以继续上传哼唱、图片或旧 Demo，我会把它们整理成同一版创作上下文。",
+    text: "把歌词、旋律描述、修改意见或附件发给我。你可以先加入灵感库，也可以直接生成一个版本。",
   },
 ];
 
 const initialTags: AnalysisTag[] = [
   {
     label: "主题",
-    value: "离开一座生活很久的城市",
-    detail: "告别、重逢、未完成关系",
+    value: "等待输入",
+    detail: "发送内容后自动整理主题",
   },
   {
     label: "情绪",
-    value: "克制、不舍、后半段释放",
-    detail: "副歌需要更开阔的能量",
+    value: "等待输入",
+    detail: "发送内容后自动识别情绪",
   },
   {
     label: "场景",
-    value: "雨夜、出租车、霓虹、站台",
-    detail: "适合保留环境声作为 Intro",
+    value: "等待输入",
+    detail: "发送内容后自动提取场景",
   },
   {
     label: "适用位置",
-    value: "主歌结尾 / 副歌 Hook",
-    detail: "原句建议作为 Hook 落点",
+    value: "等待输入",
+    detail: "发送内容后判断歌词或旋律位置",
   },
 ];
 
-const initialVersions: DemoVersion[] = [
-  {
-    id: "demo_v2",
-    title: "Demo V2",
-    meta: "Instrumental · 76 BPM · 轻鼓组",
-    note: "副歌空间更大，但主歌还可以更贴近口语。",
-    status: "上一版",
-    progress: 100,
-  },
-  {
-    id: "demo_v1",
-    title: "Demo V1",
-    meta: "都市流行 · 钢琴与电子氛围",
-    note: "主歌情绪对了，副歌鼓组略重。",
-    status: "已试听 6 次",
-    progress: 100,
-  },
-];
-
-const initialEvents: CollaborationEvent[] = [
-  { id: "evt_1", actor: "我", action: "上传了副歌哼唱参考", time: "2分钟前" },
-  { id: "evt_2", actor: "林雨", action: "修改了 Hook 第二句", time: "12分钟前" },
-  { id: "evt_3", actor: "陈舟", action: "给 Demo V1 留下试听反馈", time: "今天 15:20" },
-];
-
-const libraryCards: Array<{
-  type: string;
-  title: string;
-  meta: string;
-  status: string;
-  icon: LucideIcon;
-}> = [
-  {
-    type: "旋律",
-    title: "凌晨副歌哼唱01",
-    meta: "BPM 76 · A小调 · Hook",
-    status: "可进入编曲",
-    icon: Music2,
-  },
-  {
-    type: "歌词",
-    title: "像明天还会见",
-    meta: "告别 · 城市夜晚 · 主歌结尾",
-    status: "待发展",
-    icon: Type,
-  },
-  {
-    type: "画面",
-    title: "雨夜出租车照片",
-    meta: "霓虹 · 离开深圳 · 克制",
-    status: "已关联 Demo",
-    icon: ImageIcon,
-  },
-  {
-    type: "声音",
-    title: "风噪与站台广播",
-    meta: "现场采样 · Intro 参考",
-    status: "待清理",
-    icon: Radio,
-  },
-];
+const STORAGE_KEYS = {
+  projects: "sonic-seed.projects",
+  library: "sonic-seed.library",
+  versions: "sonic-seed.versions",
+};
 
 function formatBytes(size: number) {
   if (size < 1024 * 1024) {
@@ -235,6 +128,40 @@ function formatBytes(size: number) {
 
 function nowLabel() {
   return "刚刚";
+}
+
+function readStorage<T>(key: string, fallback: T): T {
+  if (typeof window === "undefined") {
+    return fallback;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as T) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function writeStorage<T>(key: string, value: T) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.setItem(key, JSON.stringify(value));
+}
+
+function summarizePrompt(prompt: string) {
+  const firstLine = prompt.split("\n").find((line) => line.trim())?.trim() ?? "未命名创作";
+  return firstLine.slice(0, 24);
+}
+
+function getSharedProjectId() {
+  if (typeof window === "undefined") {
+    return "";
+  }
+
+  return new URLSearchParams(window.location.search).get("project") ?? "";
 }
 
 function getAttachmentType(file: File): BriefAttachment["type"] {
@@ -267,6 +194,32 @@ function getAttachmentIcon(type: BriefAttachment["type"]) {
   }
 
   return Tags;
+}
+
+function getLibraryIcon(card: InspirationCard) {
+  const firstAttachment = card.attachments[0];
+  return firstAttachment ? getAttachmentIcon(firstAttachment.type) : Type;
+}
+
+function getLibraryType(card: InspirationCard) {
+  const firstAttachment = card.attachments[0];
+  if (!firstAttachment) {
+    return "文字";
+  }
+
+  if (firstAttachment.type === "audio") {
+    return "音频";
+  }
+
+  if (firstAttachment.type === "image") {
+    return "图片";
+  }
+
+  if (firstAttachment.type === "video") {
+    return "视频";
+  }
+
+  return "灵感";
 }
 
 function inferMode(attachments: LocalAttachment[]): InputMode {
@@ -307,24 +260,34 @@ function HomePage() {
 }
 
 function CreatePage() {
-  const [projects, setProjects] = useState<Project[]>(initialProjects);
-  const [activeProjectId, setActiveProjectId] = useState(initialProjects[0].id);
+  const [projects, setProjects] = useState<Project[]>(() => readStorage<Project[]>(STORAGE_KEYS.projects, []));
+  const [activeProjectId, setActiveProjectId] = useState<string>(() => getSharedProjectId() || (readStorage<Project[]>(STORAGE_KEYS.projects, [])[0]?.id ?? ""));
   const [historyCollapsed, setHistoryCollapsed] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
-  const [draft, setDraft] = useState("这首歌想像一个人离开深圳前的最后一晚，鼓要轻一点。");
+  const [draft, setDraft] = useState("");
   const [attachments, setAttachments] = useState<LocalAttachment[]>([]);
   const [analysisTags, setAnalysisTags] = useState<AnalysisTag[]>(initialTags);
   const [brief, setBrief] = useState<BriefResponse | null>(null);
   const [analysisState, setAnalysisState] = useState("实时分析待命");
-  const [versions, setVersions] = useState<DemoVersion[]>(initialVersions);
-  const [activeVersionId, setActiveVersionId] = useState(initialVersions[0].id);
-  const [listenState, setListenState] = useState("点击试听上一版");
+  const [versions, setVersions] = useState<DemoVersion[]>(() => readStorage<DemoVersion[]>(STORAGE_KEYS.versions, []));
+  const [activeVersionId, setActiveVersionId] = useState<string>(() => readStorage<DemoVersion[]>(STORAGE_KEYS.versions, [])[0]?.id ?? "");
+  const [listenState, setListenState] = useState("暂无可试听版本");
   const [shareState, setShareState] = useState("复制协作链接");
-  const [events, setEvents] = useState<CollaborationEvent[]>(initialEvents);
+  const [events, setEvents] = useState<CollaborationEvent[]>([]);
+  const [libraryCount, setLibraryCount] = useState(() => readStorage<InspirationCard[]>(STORAGE_KEYS.library, []).length);
   const analysisRequestRef = useRef(0);
 
   const activeProject = useMemo(
-    () => projects.find((project) => project.id === activeProjectId) ?? projects[0],
+    () =>
+      projects.find((project) => project.id === activeProjectId) ?? {
+        id: "",
+        title: "新的创作",
+        subtitle: "输入内容后会创建历史",
+        status: "未保存",
+        progress: 0,
+        owner: "我",
+        updated: "刚刚",
+      },
     [activeProjectId, projects],
   );
 
@@ -336,6 +299,54 @@ function CreatePage() {
   const currentPrompt = useMemo(() => buildPrompt(draft, attachments), [draft, attachments]);
   const currentMode = useMemo(() => inferMode(attachments), [attachments]);
   const canSubmit = currentPrompt.trim().length > 2;
+
+  useEffect(() => {
+    writeStorage(STORAGE_KEYS.projects, projects);
+    if (!hasApiConnection() || !projects.length) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      projects.forEach((project) => {
+        void saveProject(project);
+      });
+    }, 360);
+
+    return () => window.clearTimeout(timer);
+  }, [projects]);
+
+  useEffect(() => {
+    writeStorage(STORAGE_KEYS.versions, versions);
+  }, [versions]);
+
+  useEffect(() => {
+    if (!hasApiConnection()) {
+      return;
+    }
+
+    let cancelled = false;
+    void listProjects()
+      .then((remoteProjects) => {
+        if (cancelled || !remoteProjects.length) {
+          return;
+        }
+
+        setProjects((current) => {
+          const knownIds = new Set(remoteProjects.map((project) => project.id));
+          return [...remoteProjects, ...current.filter((project) => !knownIds.has(project.id))];
+        });
+
+        const sharedProjectId = getSharedProjectId();
+        setActiveProjectId((current) => sharedProjectId || current || (remoteProjects[0]?.id ?? ""));
+      })
+      .catch(() => {
+        setAnalysisState("后端项目同步失败");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!canSubmit) {
@@ -352,6 +363,39 @@ function CreatePage() {
 
   function addEvent(actor: string, action: string) {
     setEvents((current) => [{ id: `evt_${Date.now()}`, actor, action, time: nowLabel() }, ...current].slice(0, 5));
+  }
+
+  function ensureProject(prompt = currentPrompt) {
+    if (activeProjectId) {
+      setProjects((current) =>
+        current.map((project) =>
+          project.id === activeProjectId
+            ? {
+                ...project,
+                subtitle: prompt ? summarizePrompt(prompt) : project.subtitle,
+                updated: nowLabel(),
+              }
+            : project,
+        ),
+      );
+      return activeProjectId;
+    }
+
+    const id = `project_${Date.now()}`;
+    const title = summarizePrompt(prompt);
+    const nextProject: Project = {
+      id,
+      title,
+      subtitle: prompt ? "来自当前对话" : "新的创作",
+      status: "创作中",
+      progress: 12,
+      owner: "我",
+      updated: nowLabel(),
+    };
+    setProjects((current) => [nextProject, ...current]);
+    setActiveProjectId(id);
+    addEvent("我", "创建了新的创作历史");
+    return id;
   }
 
   async function runAnalysis(
@@ -371,7 +415,7 @@ function CreatePage() {
 
     try {
       const nextBrief = await analyzeInspiration({
-        projectId: activeProject.id,
+        projectId: activeProject.id || "draft",
         mode: inferMode(nextAttachments),
         content: prompt,
         attachments: nextAttachments.map(({ type, name, uploadId }) => ({ type, name, uploadId })),
@@ -472,6 +516,7 @@ function CreatePage() {
       return;
     }
 
+    ensureProject(prompt);
     setMessages((current) => [
       ...current,
       {
@@ -488,17 +533,57 @@ function CreatePage() {
     await runAnalysis("manual", prompt, sentAttachments, true);
   }
 
+  async function handleSaveInspiration() {
+    const prompt = currentPrompt;
+    if (!prompt.trim()) {
+      setAnalysisState("先输入内容或上传附件");
+      return;
+    }
+
+    const projectId = ensureProject(prompt);
+    const title = brief?.title ?? summarizePrompt(prompt);
+
+    try {
+      const card = await saveInspiration({
+        projectId,
+        title,
+        content: prompt,
+        attachments: attachments.map(({ type, name, uploadId }) => ({ type, name, uploadId })),
+        tags: analysisTags,
+      });
+      const stored = readStorage<InspirationCard[]>(STORAGE_KEYS.library, []);
+      writeStorage(STORAGE_KEYS.library, [card, ...stored]);
+      setLibraryCount((count) => count + 1);
+      setAnalysisState("已加入灵感库");
+      addEvent("我", `保存灵感：${title}`);
+      setMessages((current) => [
+        ...current,
+        {
+          id: `ai_saved_${Date.now()}`,
+          role: "ai",
+          label: "AI",
+          text: `已加入灵感库：${title}`,
+        },
+      ]);
+    } catch {
+      setAnalysisState("加入灵感库失败");
+    }
+  }
+
   async function handleGenerateVersion() {
     if (!currentPrompt.trim() && !brief) {
       setAnalysisState("先输入内容或上传附件");
       return;
     }
 
+    const promptForTask = currentPrompt || messages.map((message) => message.text).join("\n");
+    const projectId = ensureProject(promptForTask);
+
     const referenceBrief =
       brief ??
       ({
         source: "local",
-        title: activeProject.title,
+        title: activeProject.title || summarizePrompt(promptForTask),
         summary: "使用当前对话内容生成新的版本任务。",
         tags: analysisTags,
         suggestedStyle: "都市流行 / 中慢速 / 轻鼓组",
@@ -509,8 +594,8 @@ function CreatePage() {
 
     try {
       const task = await createDemoTask({
-        projectId: activeProject.id,
-        prompt: currentPrompt || messages.map((message) => message.text).join("\n"),
+        projectId,
+        prompt: promptForTask,
         referenceBrief,
       });
 
@@ -518,23 +603,44 @@ function CreatePage() {
       const nextVersion: DemoVersion = {
         id: versionId,
         title: `版本 ${versions.length + 1}`,
-        meta: `任务 ${task.taskId}`,
+        meta: task.provider ? `${task.provider} · ${task.taskId}` : `任务 ${task.taskId}`,
         note: task.message,
-        status: task.status === "queued" ? "排队中" : "生成中",
+        status: task.status === "succeeded" ? "任务完成" : task.status === "failed" ? "生成失败" : task.status === "queued" ? "排队中" : "生成中",
         progress: task.progress ?? 12,
         taskId: task.taskId,
         audioUrl: task.audioUrl,
+        lyrics: task.lyrics,
       };
 
       setVersions((current) => [nextVersion, ...current]);
       setActiveVersionId(versionId);
       setProjects((current) =>
         current.map((project) =>
-          project.id === activeProject.id ? { ...project, status: "新版本生成中", progress: Math.min(96, project.progress + 7), updated: nowLabel() } : project,
+          project.id === projectId
+            ? {
+                ...project,
+                status: task.status === "succeeded" ? "已有可听版本" : task.status === "failed" ? "生成失败" : "新版本生成中",
+                progress: task.status === "succeeded" ? 100 : Math.min(96, project.progress + 7),
+                updated: nowLabel(),
+              }
+            : project,
         ),
       );
       addEvent("我", `创建了 ${nextVersion.title}`);
-      void pollVersionTask(task, versionId);
+      setMessages((current) => [
+        ...current,
+        {
+          id: `ai_version_${Date.now()}`,
+          role: "ai",
+          label: "AI",
+          text: task.lyrics ? `版本任务返回歌词：\n${task.lyrics}` : task.message,
+        },
+      ]);
+      if (task.status === "queued" || task.status === "running") {
+        void pollVersionTask(task, versionId);
+      } else {
+        setAnalysisState(nextVersion.status);
+      }
     } catch {
       setAnalysisState("版本任务创建失败");
     }
@@ -565,6 +671,7 @@ function CreatePage() {
                   status: statusLabel,
                   progress: latestTask.progress ?? (latestTask.status === "succeeded" ? 100 : Math.min(92, version.progress + 16)),
                   audioUrl: latestTask.audioUrl ?? version.audioUrl,
+                  lyrics: latestTask.lyrics ?? version.lyrics,
                 }
               : version,
           ),
@@ -573,6 +680,17 @@ function CreatePage() {
         if (latestTask.status === "succeeded" || latestTask.status === "failed") {
           setAnalysisState(statusLabel);
           addEvent("系统", `${latestTask.taskId} ${statusLabel}`);
+          if (latestTask.lyrics) {
+            setMessages((current) => [
+              ...current,
+              {
+                id: `ai_lyrics_${Date.now()}`,
+                role: "ai",
+                label: "AI",
+                text: `生成歌词：\n${latestTask.lyrics}`,
+              },
+            ]);
+          }
           break;
         }
       } catch {
@@ -582,44 +700,22 @@ function CreatePage() {
     }
   }
 
-  function playFallbackTone() {
-    const AudioContextClass =
-      window.AudioContext ??
-      (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-    if (!AudioContextClass) {
-      setListenState("当前浏览器无法播放预览");
-      return;
-    }
-
-    const context = new AudioContextClass();
-    const gain = context.createGain();
-    gain.connect(context.destination);
-    gain.gain.setValueAtTime(0.0001, context.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.12, context.currentTime + 0.03);
-    gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.8);
-
-    [220, 277, 330].forEach((frequency, index) => {
-      const oscillator = context.createOscillator();
-      oscillator.type = "sine";
-      oscillator.frequency.setValueAtTime(frequency, context.currentTime + index * 0.16);
-      oscillator.connect(gain);
-      oscillator.start(context.currentTime + index * 0.16);
-      oscillator.stop(context.currentTime + index * 0.16 + 0.28);
-    });
-  }
-
   async function handleListenVersion() {
     if (!activeVersion) {
+      setListenState("还没有历史版本");
       return;
     }
 
     setListenState(`试听 ${activeVersion.title}`);
 
     if (activeVersion.audioUrl) {
-      await new Audio(activeVersion.audioUrl).play();
+      try {
+        await new Audio(activeVersion.audioUrl).play();
+      } catch {
+        setListenState("浏览器暂时不能播放该音频");
+      }
     } else {
-      playFallbackTone();
-      setListenState(`${activeVersion.title} 暂无后端音频`);
+      setListenState(`${activeVersion.title} 暂无音频`);
     }
 
     setVersions((current) => {
@@ -652,7 +748,8 @@ function CreatePage() {
   }
 
   async function handleCopyShareLink() {
-    const link = `${window.location.origin}/create?project=${encodeURIComponent(activeProject.id)}&permission=edit`;
+    const projectId = activeProject.id || ensureProject(currentPrompt || "新的创作");
+    const link = `${window.location.origin}/create?project=${encodeURIComponent(projectId)}&permission=edit`;
     try {
       await navigator.clipboard.writeText(link);
       setShareState("链接已复制");
@@ -706,32 +803,40 @@ function CreatePage() {
           ) : (
             <>
               <div className="history-list">
-                {projects.map((project) => (
-                  <button
-                    className="history-item"
-                    data-active={project.id === activeProjectId}
-                    key={project.id}
-                    onClick={() => setActiveProjectId(project.id)}
-                    type="button"
-                  >
-                    <span className="history-meta">
-                      <ListMusic size={14} />
-                      {project.updated}
-                    </span>
-                    <strong>{project.title}</strong>
-                    <em>{project.subtitle}</em>
-                    <span className="progress-track" aria-label={`${project.title}进度 ${project.progress}%`}>
-                      <span style={{ width: `${project.progress}%` }} />
-                    </span>
-                    <span className="history-footer">
-                      <span>
-                        <UsersRound size={14} />
-                        {project.owner}
+                {projects.length ? (
+                  projects.map((project) => (
+                    <button
+                      className="history-item"
+                      data-active={project.id === activeProjectId}
+                      key={project.id}
+                      onClick={() => setActiveProjectId(project.id)}
+                      type="button"
+                    >
+                      <span className="history-meta">
+                        <ListMusic size={14} />
+                        {project.updated}
                       </span>
-                      <span>{project.status}</span>
-                    </span>
-                  </button>
-                ))}
+                      <strong>{project.title}</strong>
+                      <em>{project.subtitle}</em>
+                      <span className="progress-track" aria-label={`${project.title}进度 ${project.progress}%`}>
+                        <span style={{ width: `${project.progress}%` }} />
+                      </span>
+                      <span className="history-footer">
+                        <span>
+                          <UsersRound size={14} />
+                          {project.owner}
+                        </span>
+                        <span>{project.status}</span>
+                      </span>
+                    </button>
+                  ))
+                ) : (
+                  <article className="empty-state">
+                    <ListMusic size={18} />
+                    <strong>还没有创作历史</strong>
+                    <p>发送内容、加入灵感库或生成版本后会自动创建。</p>
+                  </article>
+                )}
               </div>
 
               <button className="share-link" onClick={handleCopyShareLink} type="button">
@@ -795,7 +900,7 @@ function CreatePage() {
                 <div className="composer-box">
                   <div className="composer-context">
                     <Paperclip size={15} />
-                    <span>可上传 MP3/M4A/WAV/WebM、图片、视频，也可以直接写歌词、情绪或修改意见。</span>
+                    <span>可上传 MP3/M4A/WAV/WebM、图片、视频，也可以直接写歌词、情绪或修改意见。灵感库 {libraryCount} 条。</span>
                   </div>
 
                   {!!attachments.length && (
@@ -839,6 +944,10 @@ function CreatePage() {
                       <span>附件</span>
                       <input accept="audio/*,image/*,video/*,.mp3,.m4a,.wav,.webm,.mp4,.mov" multiple onChange={handleAttachmentChange} type="file" />
                     </label>
+                    <button className="utility-button" disabled={!canSubmit} onClick={() => void handleSaveInspiration()} type="button">
+                      <Library size={16} />
+                      加入灵感库
+                    </button>
                     <button className="utility-button" onClick={() => void handleGenerateVersion()} type="button">
                       <Headphones size={16} />
                       生成版本
@@ -856,9 +965,9 @@ function CreatePage() {
                   <Headphones size={24} />
                 </button>
                 <p>{listenState}</p>
-                <strong>{activeVersion?.title}</strong>
-                <span>{activeVersion?.status}</span>
-                <span>{activeVersion?.progress}%</span>
+                <strong>{activeVersion?.title ?? "暂无版本"}</strong>
+                <span>{activeVersion?.status ?? "生成后可听"}</span>
+                <span>{activeVersion ? `${activeVersion.progress}%` : `${versions.length} 个版本`}</span>
               </aside>
             </div>
           </section>
@@ -894,6 +1003,30 @@ function CreatePage() {
 }
 
 function LibraryPage() {
+  const [cards, setCards] = useState<InspirationCard[]>(() => readStorage<InspirationCard[]>(STORAGE_KEYS.library, []));
+
+  useEffect(() => {
+    if (!hasApiConnection()) {
+      return;
+    }
+
+    let cancelled = false;
+    void listInspirations()
+      .then((remoteCards) => {
+        if (cancelled) {
+          return;
+        }
+
+        setCards(remoteCards);
+        writeStorage(STORAGE_KEYS.library, remoteCards);
+      })
+      .catch(() => undefined);
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
     <main className="library-shell" aria-label="灵感库">
       <header className="studio-topbar">
@@ -909,10 +1042,10 @@ function LibraryPage() {
       <section className="library-hero">
         <div>
           <p>个人音乐基因库</p>
-          <h2>128 条灵感，42 条已建立关系，9 个可播放 Demo。</h2>
+          <h2>{cards.length ? `${cards.length} 条已保存灵感。` : "还没有保存灵感。"}</h2>
         </div>
         <div className="tag-cluster">
-          {["告别", "R&B", "城市夜晚", "Hook", "雨夜"].map((tag) => (
+          {(cards[0]?.tags.map((tag) => tag.value).slice(0, 5) ?? ["等待第一条灵感"]).map((tag) => (
             <span key={tag}>
               <Tags size={12} />
               {tag}
@@ -922,17 +1055,32 @@ function LibraryPage() {
       </section>
 
       <section className="library-grid">
-        {libraryCards.map(({ type, title, meta, status, icon: Icon }) => (
-          <article className="library-tile" key={title}>
-            <span className="tile-icon">
-              <Icon size={21} />
-            </span>
-            <p>{type}</p>
-            <h3>{title}</h3>
-            <span>{meta}</span>
-            <strong>{status}</strong>
+        {cards.length ? (
+          cards.map((card) => {
+            const Icon = getLibraryIcon(card);
+            return (
+              <article className="library-tile" key={card.id}>
+                <span className="tile-icon">
+                  <Icon size={21} />
+                </span>
+                <p>{getLibraryType(card)}</p>
+                <h3>{card.title}</h3>
+                <span>{card.content || "仅附件灵感"}</span>
+                <strong>{card.tags[0]?.value ?? "待分析"}</strong>
+              </article>
+            );
+          })
+        ) : (
+          <article className="empty-state library-empty">
+            <Library size={22} />
+            <strong>灵感库为空</strong>
+            <p>回到工作台输入内容后，点击“加入灵感库”即可保存。</p>
+            <a className="entrance-button primary" href="/create">
+              <Play size={18} />
+              开始创作
+            </a>
           </article>
-        ))}
+        )}
       </section>
     </main>
   );

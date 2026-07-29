@@ -80,10 +80,23 @@ backend/.env.example
 
 - `GET /api/health`
 - `GET /api/projects`
+- `POST /api/projects`
 - `POST /api/brief`
+- `GET /api/inspirations`
+- `POST /api/inspirations`
 - `POST /api/uploads`
 - `POST /api/demo-tasks`
 - `GET /api/demo-tasks/{task_id}`
+
+音乐生成走后端调用 MiniMax，不会在前端暴露密钥。未配置 `MINIMAX_API_KEY` 时，生成版本会返回明确失败状态，不会把固定样例伪装成 AI 结果。需要在后端平台配置：
+
+```text
+MINIMAX_API_KEY=...
+MINIMAX_BASE_URL=https://api.minimaxi.com
+MINIMAX_MUSIC_MODEL=music-3.0
+```
+
+MiniMax 返回的 URL 有有效期，生产环境需要把音频保存到 COS / OSS / S3 等对象存储，再把持久地址写入数据库。
 
 ## 设计约束
 

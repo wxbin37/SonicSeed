@@ -32,6 +32,7 @@ export type DemoTaskRequest = {
   projectId: string;
   prompt: string;
   referenceBrief: BriefResponse;
+  lyrics?: string;
 };
 
 export type DemoTaskResponse = {
@@ -40,6 +41,37 @@ export type DemoTaskResponse = {
   message: string;
   audioUrl?: string;
   progress?: number;
+  lyrics?: string;
+  provider?: string;
+  traceId?: string;
+};
+
+export type ProjectRecord = {
+  id: string;
+  title: string;
+  subtitle: string;
+  status: string;
+  progress: number;
+  owner: string;
+  updated: string;
+};
+
+export type InspirationCard = {
+  id: string;
+  projectId: string;
+  title: string;
+  content: string;
+  attachments: BriefAttachment[];
+  tags: AnalysisTag[];
+  createdAt: string;
+};
+
+export type InspirationCreateRequest = {
+  projectId: string;
+  title: string;
+  content: string;
+  attachments: BriefAttachment[];
+  tags: AnalysisTag[];
 };
 
 export type UploadResponse = {
@@ -52,6 +84,10 @@ export type UploadResponse = {
 };
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "";
+
+export function hasApiConnection() {
+  return Boolean(API_BASE_URL);
+}
 
 const defaultFlow = [
   "浏览器录音 / 上传",
@@ -143,8 +179,9 @@ export async function createDemoTask(payload: DemoTaskRequest): Promise<DemoTask
     await new Promise((resolve) => setTimeout(resolve, 280));
     return {
       taskId: `local_${Date.now()}`,
-      status: "queued",
-      message: "本地模拟任务已创建；连接 Python 后端后会返回真实任务 ID。",
+      status: "failed",
+      progress: 0,
+      message: "未配置 VITE_API_BASE_URL，前端无法调用 Python 后端和 MiniMax。",
     };
   }
 
@@ -168,9 +205,9 @@ export async function getDemoTask(taskId: string): Promise<DemoTaskResponse> {
     await new Promise((resolve) => setTimeout(resolve, 420));
     return {
       taskId,
-      status: "succeeded",
-      progress: 100,
-      message: "本地模拟任务已完成；未连接音乐模型，所以不会生成真实音频文件。",
+      status: "failed",
+      progress: 0,
+      message: "未连接 Python 后端，无法读取真实生成任务。",
     };
   }
 
@@ -181,6 +218,40 @@ export async function getDemoTask(taskId: string): Promise<DemoTaskResponse> {
   }
 
   return response.json() as Promise<DemoTaskResponse>;
+}
+
+export async function listProjects(): Promise<ProjectRecord[]> {
+  if (!API_BASE_URL) {
+    return [];
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/projects`);
+
+  if (!response.ok) {
+    throw new Error(`Projects request failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<ProjectRecord[]>;
+}
+
+export async function saveProject(payload: ProjectRecord): Promise<ProjectRecord> {
+  if (!API_BASE_URL) {
+    return payload;
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/projects`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Save project failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<ProjectRecord>;
 }
 
 export async function uploadAudio(file: File): Promise<UploadResponse> {
@@ -209,6 +280,45 @@ export async function uploadAudio(file: File): Promise<UploadResponse> {
   }
 
   return response.json() as Promise<UploadResponse>;
+}
+
+export async function saveInspiration(payload: InspirationCreateRequest): Promise<InspirationCard> {
+  if (!API_BASE_URL) {
+    await new Promise((resolve) => setTimeout(resolve, 180));
+    return {
+      id: `local_insp_${Date.now()}`,
+      ...payload,
+      createdAt: new Date().toISOString(),
+    };
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/inspirations`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Save inspiration failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<InspirationCard>;
+}
+
+export async function listInspirations(): Promise<InspirationCard[]> {
+  if (!API_BASE_URL) {
+    return [];
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/inspirations`);
+
+  if (!response.ok) {
+    throw new Error(`Inspirations request failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<InspirationCard[]>;
 }
 
 export function getApiConnectionLabel() {

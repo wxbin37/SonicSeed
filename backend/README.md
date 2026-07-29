@@ -16,9 +16,22 @@ uvicorn app.main:app --reload --port 8000
 
 - `GET /api/health`
 - `GET /api/projects`
+- `POST /api/projects`
 - `POST /api/brief`
+- `GET /api/inspirations`
+- `POST /api/inspirations`
 - `POST /api/uploads`
 - `POST /api/demo-tasks`
 - `GET /api/demo-tasks/{task_id}`
 
 Set the deployed API URL in the frontend with `VITE_API_BASE_URL`.
+
+Music generation uses MiniMax from the backend only. Configure:
+
+```text
+MINIMAX_API_KEY=...
+MINIMAX_BASE_URL=https://api.minimaxi.com
+MINIMAX_MUSIC_MODEL=music-3.0
+```
+
+If `MINIMAX_API_KEY` is missing, `/api/demo-tasks` returns a failed task with generated lyrics context instead of pretending a demo was produced.

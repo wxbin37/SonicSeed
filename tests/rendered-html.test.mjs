@@ -22,12 +22,21 @@ test("front-end defines the requested product routes", async () => {
   assert.match(app, /PanelLeftOpen/);
   assert.match(app, /handleAttachmentChange/);
   assert.match(app, /handleListenVersion/);
+  assert.match(app, /handleSaveInspiration/);
   assert.match(app, /pollVersionTask/);
+  assert.match(app, /listProjects/);
+  assert.match(app, /saveProject/);
+  assert.match(app, /listInspirations/);
+  assert.match(app, /还没有创作历史/);
+  assert.doesNotMatch(app, /凌晨副歌哼唱01/);
+  assert.doesNotMatch(app, /雨夜出租车照片/);
   assert.doesNotMatch(app, /Demo 成品区/);
   assert.doesNotMatch(app, /source-toolbar/);
   assert.match(api, /VITE_API_BASE_URL/);
   assert.match(api, /uploadAudio/);
   assert.match(api, /getDemoTask/);
+  assert.match(api, /saveInspiration/);
+  assert.match(api, /hasApiConnection/);
 });
 
 test("back-end exposes the split deployment API contract", async () => {
@@ -40,16 +49,39 @@ test("back-end exposes the split deployment API contract", async () => {
   assert.match(main, /FastAPI/);
   assert.match(main, /@app\.get\("\/api\/health"/);
   assert.match(main, /@app\.get\("\/api\/projects"/);
+  assert.match(main, /@app\.post\("\/api\/projects"/);
   assert.match(main, /@app\.post\("\/api\/brief"/);
+  assert.match(main, /@app\.get\("\/api\/inspirations"/);
+  assert.match(main, /@app\.post\("\/api\/inspirations"/);
   assert.match(main, /@app\.post\("\/api\/uploads"/);
   assert.match(main, /@app\.post\("\/api\/demo-tasks"/);
   assert.match(main, /@app\.get\("\/api\/demo-tasks\/\{task_id\}"/);
   assert.match(schemas, /class BriefRequest/);
   assert.match(schemas, /class BriefAttachment/);
   assert.match(schemas, /"video"/);
+  assert.match(schemas, /class InspirationCard/);
   assert.match(schemas, /class DemoTaskResponse/);
+  assert.match(schemas, /lyrics/);
+  assert.match(schemas, /traceId/);
+  assert.match(schemas, /provider/);
   assert.match(requirements, /fastapi/);
   assert.match(requirements, /uvicorn/);
+});
+
+test("back-end calls MiniMax only through server-side configuration", async () => {
+  const [services, envExample] = await Promise.all([
+    readFile(new URL("../backend/app/services.py", import.meta.url), "utf8"),
+    readFile(new URL("../backend/.env.example", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(services, /MINIMAX_API_KEY/);
+  assert.match(services, /\/v1\/music_generation/);
+  assert.match(services, /output_format/);
+  assert.match(services, /music-3\.0/);
+  assert.match(services, /未配置 MINIMAX_API_KEY/);
+  assert.doesNotMatch(services, /fallback|mock|固定样例/i);
+  assert.match(envExample, /MINIMAX_BASE_URL=https:\/\/api\.minimaxi\.com/);
+  assert.match(envExample, /MINIMAX_MUSIC_MODEL=music-3\.0/);
 });
 
 test("uses split deployment settings and visual constraints", async () => {

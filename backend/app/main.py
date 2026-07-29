@@ -4,8 +4,18 @@ from uuid import uuid4
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
-from .schemas import BriefRequest, BriefResponse, DemoTaskRequest, DemoTaskResponse, HealthResponse, ProjectSummary, UploadResponse
-from .services import PROJECTS, build_brief, create_demo_task, get_demo_task
+from .schemas import (
+    BriefRequest,
+    BriefResponse,
+    DemoTaskRequest,
+    DemoTaskResponse,
+    HealthResponse,
+    InspirationCard,
+    InspirationCreateRequest,
+    ProjectSummary,
+    UploadResponse,
+)
+from .services import PROJECTS, build_brief, create_demo_task, create_inspiration, get_demo_task, list_inspirations, upsert_project
 
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 SUPPORTED_AUDIO_TYPES = {
@@ -51,9 +61,24 @@ def list_projects() -> list[ProjectSummary]:
     return PROJECTS
 
 
+@app.post("/api/projects", response_model=ProjectSummary)
+def save_project(payload: ProjectSummary) -> ProjectSummary:
+    return upsert_project(payload)
+
+
 @app.post("/api/brief", response_model=BriefResponse)
 def create_brief(payload: BriefRequest) -> BriefResponse:
     return build_brief(payload)
+
+
+@app.get("/api/inspirations", response_model=list[InspirationCard])
+def read_inspirations() -> list[InspirationCard]:
+    return list_inspirations()
+
+
+@app.post("/api/inspirations", response_model=InspirationCard)
+def save_inspiration(payload: InspirationCreateRequest) -> InspirationCard:
+    return create_inspiration(payload)
 
 
 @app.post("/api/uploads", response_model=UploadResponse)

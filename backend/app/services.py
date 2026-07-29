@@ -1,10 +1,23 @@
 from __future__ import annotations
 
+import os
 import time
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from uuid import uuid4
 
-from .schemas import AnalysisTag, BriefRequest, BriefResponse, DemoTaskRequest, DemoTaskResponse, ProjectSummary
+import httpx
+
+from .schemas import (
+    AnalysisTag,
+    BriefRequest,
+    BriefResponse,
+    DemoTaskRequest,
+    DemoTaskResponse,
+    InspirationCard,
+    InspirationCreateRequest,
+    ProjectSummary,
+)
 
 
 DATA_FLOW = [
@@ -19,35 +32,8 @@ DATA_FLOW = [
 ]
 
 
-PROJECTS = [
-    ProjectSummary(
-        id="city-leave",
-        title="离开城市之前",
-        subtitle="副歌哼唱 + 两句歌词",
-        status="Mureka 伴奏生成中",
-        progress=68,
-        owner="我",
-        updated="2分钟前",
-    ),
-    ProjectSummary(
-        id="midnight-hook",
-        title="凌晨副歌接力",
-        subtitle="合作方正在改 Hook",
-        status="等待歌词确认",
-        progress=42,
-        owner="林雨",
-        updated="12分钟前",
-    ),
-    ProjectSummary(
-        id="taxi-rain",
-        title="雨夜出租车 Demo",
-        subtitle="V1 试听反馈沉淀",
-        status="准备生成分支",
-        progress=86,
-        owner="陈舟",
-        updated="今天 15:20",
-    ),
-]
+PROJECTS: list[ProjectSummary] = []
+INSPIRATIONS: list[InspirationCard] = []
 
 
 @dataclass
@@ -57,9 +43,18 @@ class StoredTask:
     status: str
     message: str
     created_at: float
+    progress: int
+    audio_url: str | None = None
+    lyrics: str | None = None
+    provider: str | None = None
+    trace_id: str | None = None
 
 
 TASKS: dict[str, StoredTask] = {}
+
+
+def utc_now_label() -> str:
+    return datetime.now(timezone.utc).isoformat()
 
 
 def build_brief(payload: BriefRequest) -> BriefResponse:
@@ -113,22 +108,184 @@ def build_brief(payload: BriefRequest) -> BriefResponse:
     )
 
 
-def create_demo_task(payload: DemoTaskRequest) -> DemoTaskResponse:
-    task_id = f"task_{uuid4().hex[:10]}"
-    TASKS[task_id] = StoredTask(
-        id=task_id,
-        project_id=payload.projectId,
-        status="queued",
-        message="任务已创建，后续会提交到 Mureka 或 MiniMax，并通过轮询返回状态。",
-        created_at=time.monotonic(),
+def list_inspirations() -> list[InspirationCard]:
+    return INSPIRATIONS
+
+
+def create_inspiration(payload: InspirationCreateRequest) -> InspirationCard:
+    card = InspirationCard(
+        id=f"insp_{uuid4().hex[:12]}",
+        projectId=payload.projectId,
+        title=payload.title,
+        content=payload.content,
+        attachments=payload.attachments,
+        tags=payload.tags,
+        createdAt=utc_now_label(),
     )
+    INSPIRATIONS.insert(0, card)
+    return card
+
+
+def upsert_project(payload: ProjectSummary) -> ProjectSummary:
+    for index, project in enumerate(PROJECTS):
+        if project.id == payload.id:
+            PROJECTS[index] = payload
+            return payload
+
+    PROJECTS.insert(0, payload)
+    return payload
+
+
+def ensure_project(project_id: str, title: str, subtitle: str) -> None:
+    if any(project.id == project_id for project in PROJECTS):
+        return
+
+    PROJECTS.insert(
+        0,
+        ProjectSummary(
+            id=project_id,
+            title=title[:80] or "未命名创作",
+            subtitle=subtitle[:80] or "新的创作",
+            status="已创建",
+            progress=12,
+            owner="我",
+            updated="刚刚",
+        ),
+    )
+
+
+def extract_user_lyrics(prompt: str) -> str:
+    lines = [line.strip() for line in prompt.splitlines() if line.strip()]
+    lyric_lines = []
+    for line in lines:
+        if line.startswith("附件:") or line.startswith("uploadId:"):
+            continue
+        if len(line) <= 80:
+            lyric_lines.append(line)
+
+    return "\n".join(lyric_lines[:12]).strip()
+
+
+def build_lyrics(prompt: str, provided_lyrics: str | None) -> str:
+    if provided_lyrics and provided_lyrics.strip():
+        return provided_lyrics.strip()[:3500]
+
+    extracted = extract_user_lyrics(prompt)
+    if extracted:
+        return f"[Verse]\n{extracted}\n[Chorus]\n我们把告别说得很轻\n像明天还会见"
+
+    return "[Verse]\n把还没说完的话放进夜色\n让旋律替我们慢慢靠近\n[Chorus]\n我们把告别说得很轻\n像明天还会见"
+
+
+def build_music_prompt(payload: DemoTaskRequest) -> str:
+    tag_text = "，".join(f"{tag.label}:{tag.value}" for tag in payload.referenceBrief.tags)
+    prompt = f"{payload.referenceBrief.suggestedStyle}，{tag_text}，{payload.prompt}"
+    return prompt[:2000]
+
+
+def call_minimax_music(payload: DemoTaskRequest) -> DemoTaskResponse:
+    api_key = os.getenv("MINIMAX_API_KEY", "").strip()
+    if not api_key:
+        return DemoTaskResponse(
+            taskId=f"task_{uuid4().hex[:10]}",
+            status="failed",
+            message="未配置 MINIMAX_API_KEY，后端没有调用音乐模型。",
+            progress=0,
+            lyrics=build_lyrics(payload.prompt, payload.lyrics),
+            provider="MiniMax",
+        )
+
+    base_url = os.getenv("MINIMAX_BASE_URL", "https://api.minimaxi.com").rstrip("/")
+    model = os.getenv("MINIMAX_MUSIC_MODEL", "music-3.0")
+    lyrics = build_lyrics(payload.prompt, payload.lyrics)
+    task_id = f"task_{uuid4().hex[:10]}"
+    request_body = {
+        "model": model,
+        "prompt": build_music_prompt(payload),
+        "lyrics": lyrics,
+        "output_format": "url",
+        "stream": False,
+        "audio_setting": {
+            "sample_rate": 44100,
+            "bitrate": 256000,
+            "format": "mp3",
+        },
+    }
+
+    try:
+        response = httpx.post(
+            f"{base_url}/v1/music_generation",
+            json=request_body,
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            timeout=120,
+        )
+        response.raise_for_status()
+        result = response.json()
+    except httpx.HTTPError as error:
+        return DemoTaskResponse(
+            taskId=task_id,
+            status="failed",
+            message=f"MiniMax 请求失败：{error}",
+            progress=0,
+            lyrics=lyrics,
+            provider="MiniMax",
+        )
+
+    base_resp = result.get("base_resp") or {}
+    if base_resp.get("status_code") not in (0, None):
+        return DemoTaskResponse(
+            taskId=task_id,
+            status="failed",
+            message=base_resp.get("status_msg") or "MiniMax 返回失败状态。",
+            progress=0,
+            lyrics=lyrics,
+            provider="MiniMax",
+            traceId=result.get("trace_id"),
+        )
+
+    audio_url = (result.get("data") or {}).get("audio")
+    if not audio_url:
+        return DemoTaskResponse(
+            taskId=task_id,
+            status="failed",
+            message="MiniMax 未返回音频地址。",
+            progress=0,
+            lyrics=lyrics,
+            provider="MiniMax",
+            traceId=result.get("trace_id"),
+        )
 
     return DemoTaskResponse(
         taskId=task_id,
-        status="queued",
-        message=TASKS[task_id].message,
-        progress=10,
+        status="succeeded",
+        message="MiniMax 已返回音频，URL 有效期约 24 小时，请后续接入对象存储做持久化。",
+        progress=100,
+        audioUrl=audio_url,
+        lyrics=lyrics,
+        provider="MiniMax",
+        traceId=result.get("trace_id"),
     )
+
+
+def create_demo_task(payload: DemoTaskRequest) -> DemoTaskResponse:
+    result = call_minimax_music(payload)
+    TASKS[result.taskId] = StoredTask(
+        id=result.taskId,
+        project_id=payload.projectId,
+        status=result.status,
+        message=result.message,
+        created_at=time.monotonic(),
+        progress=result.progress or 0,
+        audio_url=result.audioUrl,
+        lyrics=result.lyrics,
+        provider=result.provider,
+        trace_id=result.traceId,
+    )
+    ensure_project(payload.projectId, payload.referenceBrief.title, "生成版本")
+    return result
 
 
 def get_demo_task(task_id: str) -> DemoTaskResponse | None:
@@ -136,16 +293,13 @@ def get_demo_task(task_id: str) -> DemoTaskResponse | None:
     if task is None:
         return None
 
-    elapsed = time.monotonic() - task.created_at
-    if elapsed > 8:
-        task.status = "succeeded"
-        task.message = "Demo 已生成并保存到音频存储，前端可以刷新成品区。"
-        progress = 100
-    elif elapsed > 2:
-        task.status = "running"
-        task.message = "供应商任务轮询中，当前处于编曲生成阶段。"
-        progress = 62
-    else:
-        progress = 24
-
-    return DemoTaskResponse(taskId=task.id, status=task.status, message=task.message, progress=progress)
+    return DemoTaskResponse(
+        taskId=task.id,
+        status=task.status,
+        message=task.message,
+        progress=task.progress,
+        audioUrl=task.audio_url,
+        lyrics=task.lyrics,
+        provider=task.provider,
+        traceId=task.trace_id,
+    )
