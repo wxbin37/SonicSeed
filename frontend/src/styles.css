@@ -644,6 +644,21 @@ h3 {
   background: rgba(0, 0, 0, 0.12);
 }
 
+.message-audio-result {
+  display: grid;
+  gap: var(--space-100);
+  padding: var(--space-200);
+  border: 1px solid var(--divider);
+  border-radius: var(--corner-s);
+  background: var(--mask-strong);
+}
+
+.message-audio-result audio {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
 .composer-box {
   display: grid;
   gap: var(--space-300);

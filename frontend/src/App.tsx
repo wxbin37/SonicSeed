@@ -72,6 +72,7 @@ type ChatMessage = {
   label: string;
   text: string;
   attachments?: LocalAttachment[];
+  audioUrl?: string;
 };
 
 type DemoVersion = {
@@ -308,7 +309,13 @@ function versionFromTask(task: DemoTaskResponse, index: number): DemoVersion {
 
 function formatDemoTaskMessage(task: DemoTaskResponse) {
   const statusPrefix =
-    task.status === "succeeded" ? "版本任务完成" : task.status === "failed" ? `生成失败：${task.message}` : task.message;
+    task.status === "succeeded"
+      ? task.audioUrl
+        ? "试听版本已生成，可直接播放。"
+        : "版本任务完成，但模型没有返回音频地址。"
+      : task.status === "failed"
+        ? `生成失败：${task.message}`
+        : task.message;
 
   if (!task.lyrics) {
     return statusPrefix;
@@ -633,6 +640,28 @@ function CreatePage() {
       setActiveVersionId("");
     }
   }, [activeVersion, activeVersionId]);
+
+  useEffect(() => {
+    if (!activeVersion?.audioUrl) {
+      return;
+    }
+
+    const hasAudioMessage = messages.some((message) => message.audioUrl === activeVersion.audioUrl);
+    if (hasAudioMessage) {
+      return;
+    }
+
+    setMessages((current) => [
+      ...current,
+      {
+        id: `ai_recovered_audio_${activeVersion.id}`,
+        role: "ai",
+        label: "AI",
+        text: `已找回 ${activeVersion.title} 的试听结果，可直接播放。`,
+        audioUrl: activeVersion.audioUrl,
+      },
+    ]);
+  }, [activeVersion?.audioUrl, activeVersion?.id, activeVersion?.title, messages]);
 
   useEffect(() => {
     if (!hasApiConnection()) {
@@ -1383,6 +1412,7 @@ function CreatePage() {
           role: "ai",
           label: "AI",
           text: formatDemoTaskMessage(task),
+          audioUrl: task.audioUrl,
         },
       ]);
       if (task.status === "queued" || task.status === "running") {
@@ -1449,17 +1479,16 @@ function CreatePage() {
         if (latestTask.status === "succeeded" || latestTask.status === "failed") {
           setAnalysisState(statusLabel);
           addEvent("系统", `${latestTask.taskId} ${statusLabel}`);
-          if (latestTask.lyrics) {
-            setMessages((current) => [
-              ...current,
-              {
-                id: `ai_lyrics_${Date.now()}`,
-                role: "ai",
-                label: "AI",
-                text: formatDemoTaskMessage(latestTask),
-              },
-            ]);
-          }
+          setMessages((current) => [
+            ...current,
+            {
+              id: `ai_result_${Date.now()}`,
+              role: "ai",
+              label: "AI",
+              text: formatDemoTaskMessage(latestTask),
+              audioUrl: latestTask.audioUrl,
+            },
+          ]);
           break;
         }
       } catch {
@@ -1757,6 +1786,15 @@ function CreatePage() {
                         {message.label}
                       </span>
                       <p>{message.text}</p>
+                      {message.audioUrl && (
+                        <div className="message-audio-result">
+                          <span>
+                            <Headphones size={13} />
+                            试听版本
+                          </span>
+                          <audio controls src={message.audioUrl} preload="none" />
+                        </div>
+                      )}
                       {!!message.attachments?.length && (
                         <div className="message-attachments">
                           {message.attachments.map((attachment) => {

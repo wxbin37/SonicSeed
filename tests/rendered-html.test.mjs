@@ -57,6 +57,9 @@ test("front-end defines the requested product routes", async () => {
   assert.match(app, /versionFromTask/);
   assert.match(app, /formatDemoTaskMessage/);
   assert.match(app, /生成失败：/);
+  assert.match(app, /message\.audioUrl/);
+  assert.match(app, /试听版本已生成/);
+  assert.match(app, /已找回/);
   assert.match(app, /还没有创作历史/);
   assert.doesNotMatch(app, /凌晨副歌哼唱01/);
   assert.doesNotMatch(app, /雨夜出租车照片/);
@@ -196,6 +199,7 @@ test("uses split deployment settings and visual constraints", async () => {
   assert.match(css, /creation-modal-layer/);
   assert.match(css, /selected-seeds-panel/);
   assert.match(css, /prompt-config-panel/);
+  assert.match(css, /message-audio-result/);
   assert.match(css, /--background:\s*#0d0d0d/i);
   assert.match(css, /--button-highlight:\s*#00f285/i);
   assert.match(css, /@keyframes status-pulse/);
