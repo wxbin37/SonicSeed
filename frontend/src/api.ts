@@ -16,6 +16,7 @@ export type BriefRequest = {
   projectId: string;
   mode: InputMode;
   content: string;
+  attachments?: BriefAttachment[];
 };
 
 export type BriefResponse = {
@@ -31,22 +32,20 @@ export type DemoTaskRequest = {
   projectId: string;
   prompt: string;
   referenceBrief: BriefResponse;
+  lyrics?: string;
 };
 
 export type DemoTaskResponse = {
   taskId: string;
+  projectId?: string;
   status: "queued" | "running" | "succeeded" | "failed";
   message: string;
-};
-
-export type InspirationRecord = {
-  id: string;
-  projectId: string;
-  title: string;
-  content: string;
-  attachments: BriefAttachment[];
-  tags: AnalysisTag[];
-  createdAt: string;
+  audioUrl?: string;
+  progress?: number;
+  lyrics?: string;
+  provider?: string;
+  traceId?: string;
+  createdAt?: string;
 };
 
 export type ProjectRecord = {
@@ -57,6 +56,73 @@ export type ProjectRecord = {
   progress: number;
   owner: string;
   updated: string;
+  creatorClientId?: string;
+};
+
+export type ShareLinkResponse = {
+  token: string;
+  projectId: string;
+  creatorClientId: string;
+  path: string;
+  createdAt: string;
+};
+
+export type CollaborationSession = {
+  id: string;
+  projectId: string;
+  shareToken: string;
+  creatorClientId: string;
+  collaboratorClientId: string;
+  collaboratorName: string;
+  status: string;
+  progress: number;
+  lastMessage: string;
+  workbench: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ShareLinkJoinResponse = {
+  project: ProjectRecord;
+  session: CollaborationSession;
+};
+
+export type CollaborationSessionUpdateRequest = {
+  collaboratorClientId: string;
+  collaboratorName?: string;
+  status: string;
+  progress: number;
+  lastMessage: string;
+  workbench: Record<string, unknown>;
+};
+
+export type InspirationCard = {
+  id: string;
+  projectId: string;
+  title: string;
+  content: string;
+  attachments: BriefAttachment[];
+  tags: AnalysisTag[];
+  createdAt: string;
+};
+
+export type InspirationRecord = InspirationCard;
+
+export type InspirationCreateRequest = {
+  projectId: string;
+  title: string;
+  content: string;
+  attachments: BriefAttachment[];
+  tags: AnalysisTag[];
+};
+
+export type UploadResponse = {
+  uploadId: string;
+  filename: string;
+  contentType: string;
+  sizeBytes: number;
+  normalizedFormat: string;
+  nextStep: string;
 };
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "";
@@ -79,11 +145,26 @@ const defaultFlow = [
 function localBrief(payload: BriefRequest): BriefResponse {
   const text = payload.content || "新的灵感素材";
   const cityTone = /城市|出租车|雨|告别|离开/.test(text);
+  const modeLabel: Record<InputMode, string> = {
+    dialogue: "对话",
+    text: "文字",
+    humming: "哼唱",
+    image: "图片",
+    voice: "语音",
+  };
+
+  const modeSummary: Record<InputMode, string> = {
+    dialogue: "已把对话整理为创作目标、限制条件和下一步问题。",
+    text: "已保留原文，并拆出可用于歌词结构的位置建议。",
+    humming: "已把参考录音纳入旋律轮廓上下文，等待后端提取 BPM、调性和音高。",
+    image: "已把图片说明整理成场景、意象和视觉氛围。",
+    voice: "已把口述内容整理为可执行修改点和协作反馈。",
+  };
 
   return {
     source: "local",
-    title: cityTone ? "像明天还会见" : "新的创作片段",
-    summary: `已保留原始内容，并根据${payload.mode}输入整理成可继续创作的 Brief。`,
+    title: cityTone ? "像明天还会见" : `${modeLabel[payload.mode]}灵感片段`,
+    summary: modeSummary[payload.mode],
     suggestedStyle: cityTone ? "都市流行 / 中慢速 / 钢琴与电子氛围" : "温暖流行 / 轻鼓组 / 留白编曲",
     tags: [
       {
@@ -140,8 +221,9 @@ export async function createDemoTask(payload: DemoTaskRequest): Promise<DemoTask
     await new Promise((resolve) => setTimeout(resolve, 280));
     return {
       taskId: `local_${Date.now()}`,
-      status: "queued",
-      message: "本地模拟任务已创建；连接 Python 后端后会返回真实任务 ID。",
+      status: "failed",
+      progress: 0,
+      message: "未配置 VITE_API_BASE_URL，前端无法调用 Python 后端和 MiniMax。",
     };
   }
 
@@ -160,17 +242,39 @@ export async function createDemoTask(payload: DemoTaskRequest): Promise<DemoTask
   return response.json() as Promise<DemoTaskResponse>;
 }
 
-export async function listInspirations(): Promise<InspirationRecord[]> {
+export async function getDemoTask(taskId: string): Promise<DemoTaskResponse> {
+  if (!API_BASE_URL) {
+    await new Promise((resolve) => setTimeout(resolve, 420));
+    return {
+      taskId,
+      status: "failed",
+      progress: 0,
+      message: "未连接 Python 后端，无法读取真实生成任务。",
+    };
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/demo-tasks/${encodeURIComponent(taskId)}`);
+
+  if (!response.ok) {
+    throw new Error(`Demo task polling failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<DemoTaskResponse>;
+}
+
+export async function listDemoTasks(projectId?: string): Promise<DemoTaskResponse[]> {
   if (!API_BASE_URL) {
     return [];
   }
 
-  const response = await fetch(`${API_BASE_URL}/api/inspirations`);
+  const search = projectId ? `?projectId=${encodeURIComponent(projectId)}` : "";
+  const response = await fetch(`${API_BASE_URL}/api/demo-tasks${search}`);
+
   if (!response.ok) {
-    throw new Error(`Inspirations request failed with ${response.status}`);
+    throw new Error(`Demo tasks request failed with ${response.status}`);
   }
 
-  return response.json() as Promise<InspirationRecord[]>;
+  return response.json() as Promise<DemoTaskResponse[]>;
 }
 
 export async function listProjects(): Promise<ProjectRecord[]> {
@@ -179,11 +283,202 @@ export async function listProjects(): Promise<ProjectRecord[]> {
   }
 
   const response = await fetch(`${API_BASE_URL}/api/projects`);
+
   if (!response.ok) {
     throw new Error(`Projects request failed with ${response.status}`);
   }
 
   return response.json() as Promise<ProjectRecord[]>;
+}
+
+export async function saveProject(payload: ProjectRecord): Promise<ProjectRecord> {
+  if (!API_BASE_URL) {
+    return payload;
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/projects`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Save project failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<ProjectRecord>;
+}
+
+export async function createShareLink(projectId: string, creatorClientId: string): Promise<ShareLinkResponse> {
+  if (!API_BASE_URL) {
+    await new Promise((resolve) => setTimeout(resolve, 160));
+    const token = `local_share_${Date.now()}`;
+    return {
+      token,
+      projectId,
+      creatorClientId,
+      path: `/create?project=${encodeURIComponent(projectId)}&share=${encodeURIComponent(token)}`,
+      createdAt: new Date().toISOString(),
+    };
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/share-links`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ projectId, creatorClientId }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Share link request failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<ShareLinkResponse>;
+}
+
+export async function joinShareLink(
+  shareToken: string,
+  collaboratorClientId: string,
+  collaboratorName: string,
+): Promise<ShareLinkJoinResponse> {
+  if (!API_BASE_URL) {
+    throw new Error("未配置 VITE_API_BASE_URL，无法加入私域接力。");
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/share-links/${encodeURIComponent(shareToken)}/join`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ shareToken, collaboratorClientId, collaboratorName }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Join share link failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<ShareLinkJoinResponse>;
+}
+
+export async function listCollaborationSessions(projectId: string): Promise<CollaborationSession[]> {
+  if (!API_BASE_URL || !projectId) {
+    return [];
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/projects/${encodeURIComponent(projectId)}/collaboration-sessions`);
+
+  if (!response.ok) {
+    throw new Error(`Collaboration sessions request failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<CollaborationSession[]>;
+}
+
+export async function getCollaborationSession(sessionId: string): Promise<CollaborationSession> {
+  if (!API_BASE_URL) {
+    throw new Error("未配置 VITE_API_BASE_URL，无法读取接力工作台。");
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/collaboration-sessions/${encodeURIComponent(sessionId)}`);
+
+  if (!response.ok) {
+    throw new Error(`Collaboration session request failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<CollaborationSession>;
+}
+
+export async function updateCollaborationSession(
+  sessionId: string,
+  payload: CollaborationSessionUpdateRequest,
+): Promise<CollaborationSession> {
+  if (!API_BASE_URL) {
+    throw new Error("未配置 VITE_API_BASE_URL，无法同步接力进度。");
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/collaboration-sessions/${encodeURIComponent(sessionId)}`, {
+    method: "PATCH",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Collaboration session update failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<CollaborationSession>;
+}
+
+export async function uploadAudio(file: File): Promise<UploadResponse> {
+  if (!API_BASE_URL) {
+    await new Promise((resolve) => setTimeout(resolve, 360));
+    return {
+      uploadId: `local_upload_${Date.now()}`,
+      filename: file.name,
+      contentType: file.type || "application/octet-stream",
+      sizeBytes: file.size,
+      normalizedFormat: "local-preview",
+      nextStep: "连接 Python 后端后会执行音频校验、转码和旋律分析。",
+    };
+  }
+
+  const form = new FormData();
+  form.append("file", file);
+
+  const response = await fetch(`${API_BASE_URL}/api/uploads`, {
+    method: "POST",
+    body: form,
+  });
+
+  if (!response.ok) {
+    throw new Error(`Upload failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<UploadResponse>;
+}
+
+export async function saveInspiration(payload: InspirationCreateRequest): Promise<InspirationCard> {
+  if (!API_BASE_URL) {
+    await new Promise((resolve) => setTimeout(resolve, 180));
+    return {
+      id: `local_insp_${Date.now()}`,
+      ...payload,
+      createdAt: new Date().toISOString(),
+    };
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/inspirations`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Save inspiration failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<InspirationCard>;
+}
+
+export async function listInspirations(): Promise<InspirationCard[]> {
+  if (!API_BASE_URL) {
+    return [];
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/inspirations`);
+
+  if (!response.ok) {
+    throw new Error(`Inspirations request failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<InspirationCard[]>;
 }
 
 export function getApiConnectionLabel() {
