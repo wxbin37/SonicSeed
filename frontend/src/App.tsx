@@ -31,6 +31,7 @@ import {
   getApiConnectionLabel,
   getCollaborationSession,
   getDemoTask,
+  getProjectWorkspace,
   hasApiConnection,
   joinShareLink,
   listCollaborationSessions,
@@ -39,6 +40,7 @@ import {
   listProjects,
   saveInspiration,
   saveProject,
+  saveProjectWorkspace,
   updateCollaborationSession,
   uploadAudio,
   type AnalysisTag,
@@ -135,6 +137,7 @@ const STORAGE_KEYS = {
   projects: "sonic-seed.projects",
   library: "sonic-seed.library",
   versions: "sonic-seed.versions",
+  workspaces: "sonic-seed.workspaces",
   clientId: "sonic-seed.client-id",
 };
 
@@ -399,6 +402,9 @@ function CreatePage() {
   const [collaborationState, setCollaborationState] = useState(() => (hasApiConnection() ? "接力未开启" : "连接后端后可共享"));
   const analysisRequestRef = useRef(0);
   const sessionSyncRef = useRef("");
+  const projectWorkspaceSyncRef = useRef("");
+  const newProjectRef = useRef("");
+  const [loadedWorkspaceProjectId, setLoadedWorkspaceProjectId] = useState("");
 
   const activeProject = useMemo(
     () =>
@@ -493,6 +499,62 @@ function CreatePage() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!activeProject.id || isShareViewer) {
+      return;
+    }
+
+    if (newProjectRef.current === activeProject.id) {
+      setLoadedWorkspaceProjectId(activeProject.id);
+      projectWorkspaceSyncRef.current = "";
+      newProjectRef.current = "";
+      return;
+    }
+
+    setLoadedWorkspaceProjectId("");
+    projectWorkspaceSyncRef.current = "";
+    setAnalysisState("正在恢复完整对话");
+
+    if (!hasApiConnection()) {
+      const localWorkspaces = readStorage<Record<string, WorkbenchSnapshot>>(STORAGE_KEYS.workspaces, {});
+      const localWorkspace = localWorkspaces[activeProject.id];
+      if (localWorkspace) {
+        applyWorkbenchSnapshot(localWorkspace as Record<string, unknown>, "已恢复完整对话");
+      } else {
+        resetWorkbenchForProject();
+      }
+      setLoadedWorkspaceProjectId(activeProject.id);
+      return;
+    }
+
+    let cancelled = false;
+
+    void getProjectWorkspace(activeProject.id)
+      .then((workspace) => {
+        if (cancelled) {
+          return;
+        }
+
+        if (workspace && Object.keys(workspace.workbench).length) {
+          applyWorkbenchSnapshot(workspace.workbench, "已恢复完整对话");
+        } else {
+          resetWorkbenchForProject();
+        }
+
+        setLoadedWorkspaceProjectId(activeProject.id);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          resetWorkbenchForProject("完整对话恢复失败");
+          setLoadedWorkspaceProjectId(activeProject.id);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeProject.id, isShareViewer]);
 
   useEffect(() => {
     if (!shareToken) {
@@ -659,6 +721,48 @@ function CreatePage() {
     return () => window.clearTimeout(timer);
   }, [activeProject.progress, activeSession, activeVersion?.progress, analysisState, analysisTags, brief, clientId, draft, messages, versions]);
 
+  useEffect(() => {
+    if (!activeProject.id || isShareViewer || loadedWorkspaceProjectId !== activeProject.id) {
+      return;
+    }
+
+    const snapshot = buildWorkbenchSnapshot();
+    const signature = JSON.stringify({
+      projectId: activeProject.id,
+      clientId,
+      snapshot,
+    });
+
+    if (projectWorkspaceSyncRef.current === signature) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      if (!hasApiConnection()) {
+        const localWorkspaces = readStorage<Record<string, WorkbenchSnapshot>>(STORAGE_KEYS.workspaces, {});
+        writeStorage(STORAGE_KEYS.workspaces, {
+          ...localWorkspaces,
+          [activeProject.id]: snapshot,
+        });
+        projectWorkspaceSyncRef.current = signature;
+        return;
+      }
+
+      void saveProjectWorkspace(activeProject.id, {
+        clientId,
+        workbench: snapshot,
+      })
+        .then(() => {
+          projectWorkspaceSyncRef.current = signature;
+        })
+        .catch(() => {
+          setAnalysisState("完整对话保存失败");
+        });
+    }, 700);
+
+    return () => window.clearTimeout(timer);
+  }, [activeProject.id, activeVersionId, analysisTags, brief, clientId, draft, isShareViewer, loadedWorkspaceProjectId, messages, versions]);
+
   function addEvent(actor: string, action: string) {
     setEvents((current) => [{ id: `evt_${Date.now()}`, actor, action, time: nowLabel() }, ...current].slice(0, 5));
   }
@@ -676,13 +780,23 @@ function CreatePage() {
     };
   }
 
-  function applySessionWorkbench(session: CollaborationSession) {
-    const workbench = session.workbench;
+  function resetWorkbenchForProject(status = "已打开创作历史") {
+    setMessages(initialMessages);
+    setAnalysisTags(initialTags);
+    setBrief(null);
+    setDraft("");
+    setAttachments([]);
+    setActiveVersionId("");
+    setAnalysisState(status);
+  }
+
+  function applyWorkbenchSnapshot(workbench: Record<string, unknown>, status: string) {
     const nextMessages = readWorkbenchArray<ChatMessage>(workbench, "messages");
     const nextTags = readWorkbenchArray<AnalysisTag>(workbench, "analysisTags");
     const nextVersions = readWorkbenchArray<DemoVersion>(workbench, "versions");
     const nextDraft = readWorkbenchString(workbench, "draft");
     const nextActiveVersionId = readWorkbenchString(workbench, "activeVersionId");
+    const nextProjectId = readWorkbenchString(workbench, "projectId") ?? activeProject.id;
 
     if (nextMessages) {
       setMessages(nextMessages);
@@ -694,7 +808,7 @@ function CreatePage() {
 
     if (nextVersions) {
       const nextIds = new Set(nextVersions.map((version) => version.id));
-      setVersions((current) => [...nextVersions, ...current.filter((version) => !nextIds.has(version.id) && version.projectId !== session.projectId)]);
+      setVersions((current) => [...nextVersions, ...current.filter((version) => !nextIds.has(version.id) && version.projectId !== nextProjectId)]);
     }
 
     if (typeof workbench.brief === "object") {
@@ -709,7 +823,11 @@ function CreatePage() {
       setActiveVersionId(nextActiveVersionId);
     }
 
-    setAnalysisState(`${session.collaboratorName} 的接力工作台`);
+    setAnalysisState(status);
+  }
+
+  function applySessionWorkbench(session: CollaborationSession) {
+    applyWorkbenchSnapshot(session.workbench, `${session.collaboratorName} 的接力工作台`);
     setCollaborationState(`${session.collaboratorName} 最新进度 ${session.progress}%`);
   }
 
@@ -717,6 +835,7 @@ function CreatePage() {
     setActiveProjectId(projectId);
     setReviewSessionId("");
     setActiveSession((session) => (session?.projectId === projectId && session.collaboratorClientId === clientId ? session : null));
+    resetWorkbenchForProject("正在打开创作历史");
   }
 
   async function handleOpenCollaborationSession(sessionId: string) {
@@ -772,6 +891,8 @@ function CreatePage() {
     };
     setProjects((current) => [nextProject, ...current]);
     setActiveProjectId(id);
+    newProjectRef.current = id;
+    setLoadedWorkspaceProjectId(id);
     addEvent("我", "创建了新的创作历史");
     return id;
   }
@@ -1111,6 +1232,9 @@ function CreatePage() {
 
     setProjects((current) => [nextProject, ...current]);
     setActiveProjectId(id);
+    newProjectRef.current = id;
+    setLoadedWorkspaceProjectId(id);
+    resetWorkbenchForProject("新建创作空间");
     addEvent("我", "新建了一个创作空间");
   }
 

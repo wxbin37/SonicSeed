@@ -17,6 +17,8 @@ from .schemas import (
     DemoTaskRequest,
     DemoTaskResponse,
     InspirationCard,
+    ProjectWorkspaceResponse,
+    ProjectWorkspaceSaveRequest,
     ProjectSummary,
     ShareLinkResponse,
 )
@@ -104,6 +106,14 @@ def initialize_database() -> None:
 
                 CREATE INDEX IF NOT EXISTS idx_demo_tasks_project_created
                 ON demo_tasks(project_id, created_at DESC);
+
+                CREATE TABLE IF NOT EXISTS project_workspaces (
+                    project_id TEXT PRIMARY KEY,
+                    client_id TEXT NOT NULL,
+                    workbench_json TEXT NOT NULL DEFAULT '{}',
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
 
                 CREATE TABLE IF NOT EXISTS share_links (
                     token TEXT PRIMARY KEY,
@@ -255,6 +265,15 @@ def collaboration_session_from_row(row: sqlite3.Row) -> CollaborationSessionResp
     )
 
 
+def project_workspace_from_row(row: sqlite3.Row) -> ProjectWorkspaceResponse:
+    return ProjectWorkspaceResponse(
+        projectId=row["project_id"],
+        clientId=row["client_id"],
+        workbench=parse_json_dict(row["workbench_json"]),
+        updatedAt=row["updated_at"],
+    )
+
+
 def list_project_records() -> list[ProjectSummary]:
     initialize_database()
     with connect() as connection:
@@ -327,6 +346,72 @@ def get_project_record(project_id: str) -> Optional[ProjectSummary]:
         ).fetchone()
 
     return project_from_row(row) if row else None
+
+
+def get_project_workspace_record(project_id: str) -> Optional[ProjectWorkspaceResponse]:
+    initialize_database()
+    with connect() as connection:
+        row = connection.execute(
+            """
+            SELECT project_id, client_id, workbench_json, updated_at
+            FROM project_workspaces
+            WHERE project_id = ?
+            """,
+            (project_id,),
+        ).fetchone()
+
+    return project_workspace_from_row(row) if row else None
+
+
+def upsert_project_workspace_record(project_id: str, payload: ProjectWorkspaceSaveRequest) -> ProjectWorkspaceResponse:
+    initialize_database()
+    now = utc_now_label()
+    with connect() as connection:
+        project = connection.execute(
+            "SELECT creator_client_id FROM projects WHERE id = ?",
+            (project_id,),
+        ).fetchone()
+        if project is None:
+            connection.execute(
+                """
+                INSERT INTO projects (id, title, subtitle, status, progress, owner, updated, creator_client_id, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (project_id, "未命名创作", "来自工作台", "创作中", 10, "我", "刚刚", payload.clientId, now, now),
+            )
+        else:
+            existing_creator = project["creator_client_id"]
+            if existing_creator and existing_creator != payload.clientId:
+                raise PermissionError("Only the project creator can update the project workspace")
+            if not existing_creator:
+                connection.execute(
+                    "UPDATE projects SET creator_client_id = ?, updated_at = ? WHERE id = ?",
+                    (payload.clientId, now, project_id),
+                )
+
+        existing = connection.execute("SELECT created_at FROM project_workspaces WHERE project_id = ?", (project_id,)).fetchone()
+        created_at = existing["created_at"] if existing else now
+        connection.execute(
+            """
+            INSERT INTO project_workspaces (project_id, client_id, workbench_json, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(project_id) DO UPDATE SET
+                client_id = excluded.client_id,
+                workbench_json = excluded.workbench_json,
+                updated_at = excluded.updated_at
+            """,
+            (project_id, payload.clientId, json.dumps(payload.workbench, ensure_ascii=False), created_at, now),
+        )
+        row = connection.execute(
+            """
+            SELECT project_id, client_id, workbench_json, updated_at
+            FROM project_workspaces
+            WHERE project_id = ?
+            """,
+            (project_id,),
+        ).fetchone()
+
+    return project_workspace_from_row(row)
 
 
 def list_inspiration_records() -> list[InspirationCard]:

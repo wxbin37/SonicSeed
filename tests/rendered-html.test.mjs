@@ -24,6 +24,9 @@ test("front-end defines the requested product routes", async () => {
   assert.match(app, /handleListenVersion/);
   assert.match(app, /handleSaveInspiration/);
   assert.match(app, /私域接力/);
+  assert.match(app, /getProjectWorkspace/);
+  assert.match(app, /saveProjectWorkspace/);
+  assert.match(app, /applyWorkbenchSnapshot/);
   assert.match(app, /handleOpenCollaborationSession/);
   assert.match(app, /getOrCreateClientId/);
   assert.match(app, /createShareLink/);
@@ -45,6 +48,8 @@ test("front-end defines the requested product routes", async () => {
   assert.match(api, /getDemoTask/);
   assert.match(api, /listDemoTasks/);
   assert.match(api, /saveInspiration/);
+  assert.match(api, /getProjectWorkspace/);
+  assert.match(api, /saveProjectWorkspace/);
   assert.match(api, /listCollaborationSessions/);
   assert.match(api, /getCollaborationSession/);
   assert.match(api, /hasApiConnection/);
@@ -62,6 +67,8 @@ test("back-end exposes the split deployment API contract", async () => {
   assert.match(main, /@app\.get\("\/api\/health"/);
   assert.match(main, /@app\.get\("\/api\/projects"/);
   assert.match(main, /@app\.post\("\/api\/projects"/);
+  assert.match(main, /@app\.get\("\/api\/projects\/\{project_id\}\/workspace"/);
+  assert.match(main, /@app\.put\("\/api\/projects\/\{project_id\}\/workspace"/);
   assert.match(main, /@app\.post\("\/api\/share-links"/);
   assert.match(main, /@app\.post\("\/api\/share-links\/\{token\}\/join"/);
   assert.match(main, /@app\.get\("\/api\/projects\/\{project_id\}\/collaboration-sessions"/);
@@ -79,6 +86,7 @@ test("back-end exposes the split deployment API contract", async () => {
   assert.match(schemas, /"video"/);
   assert.match(schemas, /class InspirationCard/);
   assert.match(schemas, /class DemoTaskResponse/);
+  assert.match(schemas, /class ProjectWorkspaceResponse/);
   assert.match(schemas, /class ShareLinkResponse/);
   assert.match(schemas, /class CollaborationSessionResponse/);
   assert.match(schemas, /lyrics/);
@@ -89,12 +97,14 @@ test("back-end exposes the split deployment API contract", async () => {
   assert.match(storage, /import sqlite3/);
   assert.match(storage, /SONIC_SEED_DB_PATH/);
   assert.match(storage, /CREATE TABLE IF NOT EXISTS projects/);
+  assert.match(storage, /CREATE TABLE IF NOT EXISTS project_workspaces/);
   assert.match(storage, /CREATE TABLE IF NOT EXISTS inspirations/);
   assert.match(storage, /CREATE TABLE IF NOT EXISTS demo_tasks/);
   assert.match(storage, /CREATE TABLE IF NOT EXISTS share_links/);
   assert.match(storage, /CREATE TABLE IF NOT EXISTS collaboration_sessions/);
   assert.match(storage, /creator_client_id/);
   assert.match(storage, /workbench_json/);
+  assert.match(storage, /upsert_project_workspace_record/);
   assert.match(storage, /UNIQUE\(share_token, collaborator_client_id\)/);
   assert.match(storage, /attachments_json/);
   assert.match(storage, /tags_json/);

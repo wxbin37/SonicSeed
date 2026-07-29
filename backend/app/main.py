@@ -16,6 +16,8 @@ from .schemas import (
     HealthResponse,
     InspirationCard,
     InspirationCreateRequest,
+    ProjectWorkspaceResponse,
+    ProjectWorkspaceSaveRequest,
     ProjectSummary,
     ShareLinkCreateRequest,
     ShareLinkJoinResponse,
@@ -29,12 +31,14 @@ from .services import (
     create_inspiration,
     get_collaboration_session,
     get_demo_task,
+    get_project_workspace,
     join_share_link,
     list_collaboration_sessions,
     list_demo_tasks as read_demo_tasks,
     list_inspirations,
     list_projects as read_projects,
     update_collaboration_session,
+    save_project_workspace,
     upsert_project,
 )
 
@@ -85,6 +89,23 @@ def list_projects() -> list[ProjectSummary]:
 @app.post("/api/projects", response_model=ProjectSummary)
 def save_project(payload: ProjectSummary) -> ProjectSummary:
     return upsert_project(payload)
+
+
+@app.get("/api/projects/{project_id}/workspace", response_model=ProjectWorkspaceResponse)
+def read_project_workspace(project_id: str) -> ProjectWorkspaceResponse:
+    workspace = get_project_workspace(project_id)
+    if workspace is None:
+        raise HTTPException(status_code=404, detail="Project workspace not found")
+
+    return workspace
+
+
+@app.put("/api/projects/{project_id}/workspace", response_model=ProjectWorkspaceResponse)
+def write_project_workspace(project_id: str, payload: ProjectWorkspaceSaveRequest) -> ProjectWorkspaceResponse:
+    try:
+        return save_project_workspace(project_id, payload)
+    except PermissionError as error:
+        raise HTTPException(status_code=403, detail=str(error)) from error
 
 
 @app.post("/api/share-links", response_model=ShareLinkResponse)

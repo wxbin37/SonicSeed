@@ -59,6 +59,18 @@ export type ProjectRecord = {
   creatorClientId?: string;
 };
 
+export type ProjectWorkspaceSaveRequest = {
+  clientId: string;
+  workbench: Record<string, unknown>;
+};
+
+export type ProjectWorkspaceResponse = {
+  projectId: string;
+  clientId: string;
+  workbench: Record<string, unknown>;
+  updatedAt: string;
+};
+
 export type ShareLinkResponse = {
   token: string;
   projectId: string;
@@ -307,6 +319,49 @@ export async function saveProject(payload: ProjectRecord): Promise<ProjectRecord
   }
 
   return response.json() as Promise<ProjectRecord>;
+}
+
+export async function getProjectWorkspace(projectId: string): Promise<ProjectWorkspaceResponse | null> {
+  if (!API_BASE_URL || !projectId) {
+    return null;
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/projects/${encodeURIComponent(projectId)}/workspace`);
+
+  if (response.status === 404) {
+    return null;
+  }
+
+  if (!response.ok) {
+    throw new Error(`Project workspace request failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<ProjectWorkspaceResponse>;
+}
+
+export async function saveProjectWorkspace(projectId: string, payload: ProjectWorkspaceSaveRequest): Promise<ProjectWorkspaceResponse> {
+  if (!API_BASE_URL) {
+    return {
+      projectId,
+      clientId: payload.clientId,
+      workbench: payload.workbench,
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/projects/${encodeURIComponent(projectId)}/workspace`, {
+    method: "PUT",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Save project workspace failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<ProjectWorkspaceResponse>;
 }
 
 export async function createShareLink(projectId: string, creatorClientId: string): Promise<ShareLinkResponse> {

@@ -83,6 +83,8 @@ backend/.env.example
 - `GET /api/health`
 - `GET /api/projects`
 - `POST /api/projects`
+- `GET /api/projects/{project_id}/workspace`
+- `PUT /api/projects/{project_id}/workspace`
 - `POST /api/share-links`
 - `POST /api/share-links/{token}/join`
 - `GET /api/projects/{project_id}/collaboration-sessions`
@@ -112,6 +114,15 @@ backend/.env.example
 | `owner` | 当前创建者或负责人显示名 |
 | `updated` | 给界面显示的更新时间文案 |
 | `creator_client_id` | 创建者浏览器身份 ID；当前无登录系统时用于限制“只有创建者可分享” |
+| `created_at` / `updated_at` | 后台真实创建 / 更新时间 |
+
+`project_workspaces` 保存创建者主工作台的完整状态：
+
+| 字段 | 含义 |
+| --- | --- |
+| `project_id` | 创作空间 ID，也是主键 |
+| `client_id` | 最后保存主工作台的创建者浏览器身份 ID |
+| `workbench_json` | 完整工作台快照：聊天记录、AI 标签、草稿、Brief、版本列表、当前版本 |
 | `created_at` / `updated_at` | 后台真实创建 / 更新时间 |
 
 `inspirations` 保存灵感库：

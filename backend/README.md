@@ -17,6 +17,8 @@ uvicorn app.main:app --reload --port 8000
 - `GET /api/health`
 - `GET /api/projects`
 - `POST /api/projects`
+- `GET /api/projects/{project_id}/workspace`
+- `PUT /api/projects/{project_id}/workspace`
 - `POST /api/share-links`
 - `POST /api/share-links/{token}/join`
 - `GET /api/projects/{project_id}/collaboration-sessions`
@@ -45,6 +47,7 @@ SONIC_SEED_DB_PATH=data/sonicseed.sqlite3
 Core tables:
 
 - `projects`: creation history and shared workspaces. `id` is the stable project identifier used by share links.
+- `project_workspaces`: full creator workbench snapshots for each project, including chat messages, AI tags, draft, brief, and versions.
 - `inspirations`: inspiration library cards. `project_id` links each card to a project. Attachments and AI tags are stored as JSON.
 - `demo_tasks`: generated demo/version history. `id` maps to frontend `taskId`; `trace_id` stores the provider trace ID.
 - `share_links`: private handoff links. `token` maps to `/create?project=...&share=...`; `creator_client_id` is used while the product has no login system.

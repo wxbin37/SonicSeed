@@ -65,6 +65,18 @@ class ProjectSummary(BaseModel):
     creatorClientId: Optional[str] = None
 
 
+class ProjectWorkspaceSaveRequest(BaseModel):
+    clientId: str = Field(min_length=1, max_length=120)
+    workbench: dict[str, Any] = Field(default_factory=dict)
+
+
+class ProjectWorkspaceResponse(BaseModel):
+    projectId: str
+    clientId: str
+    workbench: dict[str, Any]
+    updatedAt: str
+
+
 class ShareLinkCreateRequest(BaseModel):
     projectId: str = Field(min_length=1, max_length=120)
     creatorClientId: str = Field(min_length=1, max_length=120)
