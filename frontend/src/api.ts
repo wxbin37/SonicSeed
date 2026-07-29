@@ -56,6 +56,44 @@ export type ProjectRecord = {
   progress: number;
   owner: string;
   updated: string;
+  creatorClientId?: string;
+};
+
+export type ShareLinkResponse = {
+  token: string;
+  projectId: string;
+  creatorClientId: string;
+  path: string;
+  createdAt: string;
+};
+
+export type CollaborationSession = {
+  id: string;
+  projectId: string;
+  shareToken: string;
+  creatorClientId: string;
+  collaboratorClientId: string;
+  collaboratorName: string;
+  status: string;
+  progress: number;
+  lastMessage: string;
+  workbench: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ShareLinkJoinResponse = {
+  project: ProjectRecord;
+  session: CollaborationSession;
+};
+
+export type CollaborationSessionUpdateRequest = {
+  collaboratorClientId: string;
+  collaboratorName?: string;
+  status: string;
+  progress: number;
+  lastMessage: string;
+  workbench: Record<string, unknown>;
 };
 
 export type InspirationCard = {
@@ -269,6 +307,109 @@ export async function saveProject(payload: ProjectRecord): Promise<ProjectRecord
   }
 
   return response.json() as Promise<ProjectRecord>;
+}
+
+export async function createShareLink(projectId: string, creatorClientId: string): Promise<ShareLinkResponse> {
+  if (!API_BASE_URL) {
+    await new Promise((resolve) => setTimeout(resolve, 160));
+    const token = `local_share_${Date.now()}`;
+    return {
+      token,
+      projectId,
+      creatorClientId,
+      path: `/create?project=${encodeURIComponent(projectId)}&share=${encodeURIComponent(token)}`,
+      createdAt: new Date().toISOString(),
+    };
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/share-links`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ projectId, creatorClientId }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Share link request failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<ShareLinkResponse>;
+}
+
+export async function joinShareLink(
+  shareToken: string,
+  collaboratorClientId: string,
+  collaboratorName: string,
+): Promise<ShareLinkJoinResponse> {
+  if (!API_BASE_URL) {
+    throw new Error("未配置 VITE_API_BASE_URL，无法加入私域接力。");
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/share-links/${encodeURIComponent(shareToken)}/join`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ shareToken, collaboratorClientId, collaboratorName }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Join share link failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<ShareLinkJoinResponse>;
+}
+
+export async function listCollaborationSessions(projectId: string): Promise<CollaborationSession[]> {
+  if (!API_BASE_URL || !projectId) {
+    return [];
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/projects/${encodeURIComponent(projectId)}/collaboration-sessions`);
+
+  if (!response.ok) {
+    throw new Error(`Collaboration sessions request failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<CollaborationSession[]>;
+}
+
+export async function getCollaborationSession(sessionId: string): Promise<CollaborationSession> {
+  if (!API_BASE_URL) {
+    throw new Error("未配置 VITE_API_BASE_URL，无法读取接力工作台。");
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/collaboration-sessions/${encodeURIComponent(sessionId)}`);
+
+  if (!response.ok) {
+    throw new Error(`Collaboration session request failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<CollaborationSession>;
+}
+
+export async function updateCollaborationSession(
+  sessionId: string,
+  payload: CollaborationSessionUpdateRequest,
+): Promise<CollaborationSession> {
+  if (!API_BASE_URL) {
+    throw new Error("未配置 VITE_API_BASE_URL，无法同步接力进度。");
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/collaboration-sessions/${encodeURIComponent(sessionId)}`, {
+    method: "PATCH",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Collaboration session update failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<CollaborationSession>;
 }
 
 export async function uploadAudio(file: File): Promise<UploadResponse> {

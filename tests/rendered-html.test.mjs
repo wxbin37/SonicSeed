@@ -23,6 +23,12 @@ test("front-end defines the requested product routes", async () => {
   assert.match(app, /handleAttachmentChange/);
   assert.match(app, /handleListenVersion/);
   assert.match(app, /handleSaveInspiration/);
+  assert.match(app, /私域接力/);
+  assert.match(app, /handleOpenCollaborationSession/);
+  assert.match(app, /getOrCreateClientId/);
+  assert.match(app, /createShareLink/);
+  assert.match(app, /joinShareLink/);
+  assert.match(app, /updateCollaborationSession/);
   assert.match(app, /pollVersionTask/);
   assert.match(app, /listProjects/);
   assert.match(app, /saveProject/);
@@ -39,6 +45,8 @@ test("front-end defines the requested product routes", async () => {
   assert.match(api, /getDemoTask/);
   assert.match(api, /listDemoTasks/);
   assert.match(api, /saveInspiration/);
+  assert.match(api, /listCollaborationSessions/);
+  assert.match(api, /getCollaborationSession/);
   assert.match(api, /hasApiConnection/);
 });
 
@@ -54,6 +62,11 @@ test("back-end exposes the split deployment API contract", async () => {
   assert.match(main, /@app\.get\("\/api\/health"/);
   assert.match(main, /@app\.get\("\/api\/projects"/);
   assert.match(main, /@app\.post\("\/api\/projects"/);
+  assert.match(main, /@app\.post\("\/api\/share-links"/);
+  assert.match(main, /@app\.post\("\/api\/share-links\/\{token\}\/join"/);
+  assert.match(main, /@app\.get\("\/api\/projects\/\{project_id\}\/collaboration-sessions"/);
+  assert.match(main, /@app\.get\("\/api\/collaboration-sessions\/\{session_id\}"/);
+  assert.match(main, /@app\.patch\("\/api\/collaboration-sessions\/\{session_id\}"/);
   assert.match(main, /@app\.post\("\/api\/brief"/);
   assert.match(main, /@app\.get\("\/api\/inspirations"/);
   assert.match(main, /@app\.post\("\/api\/inspirations"/);
@@ -66,6 +79,8 @@ test("back-end exposes the split deployment API contract", async () => {
   assert.match(schemas, /"video"/);
   assert.match(schemas, /class InspirationCard/);
   assert.match(schemas, /class DemoTaskResponse/);
+  assert.match(schemas, /class ShareLinkResponse/);
+  assert.match(schemas, /class CollaborationSessionResponse/);
   assert.match(schemas, /lyrics/);
   assert.match(schemas, /traceId/);
   assert.match(schemas, /provider/);
@@ -76,6 +91,11 @@ test("back-end exposes the split deployment API contract", async () => {
   assert.match(storage, /CREATE TABLE IF NOT EXISTS projects/);
   assert.match(storage, /CREATE TABLE IF NOT EXISTS inspirations/);
   assert.match(storage, /CREATE TABLE IF NOT EXISTS demo_tasks/);
+  assert.match(storage, /CREATE TABLE IF NOT EXISTS share_links/);
+  assert.match(storage, /CREATE TABLE IF NOT EXISTS collaboration_sessions/);
+  assert.match(storage, /creator_client_id/);
+  assert.match(storage, /workbench_json/);
+  assert.match(storage, /UNIQUE\(share_token, collaborator_client_id\)/);
   assert.match(storage, /attachments_json/);
   assert.match(storage, /tags_json/);
   assert.doesNotMatch(storage, /PROJECTS|INSPIRATIONS|TASKS/);

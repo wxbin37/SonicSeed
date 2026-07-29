@@ -403,6 +403,81 @@ h3 {
   animation: status-pulse 2.2s ease-in-out infinite;
 }
 
+.handoff-panel {
+  display: grid;
+  gap: var(--space-300);
+  margin-top: var(--space-400);
+  padding-top: var(--space-400);
+  border-top: 1px solid var(--divider);
+}
+
+.handoff-heading {
+  display: grid;
+  gap: var(--space-100);
+}
+
+.handoff-heading span,
+.handoff-item span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-100);
+  color: var(--text-300);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+}
+
+.handoff-heading small {
+  color: var(--text-400);
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 600;
+}
+
+.handoff-list {
+  display: grid;
+  gap: var(--space-200);
+}
+
+.handoff-item,
+.handoff-empty {
+  display: grid;
+  gap: var(--space-100);
+  padding: var(--space-300);
+  border: 1px solid var(--divider);
+  border-radius: var(--corner-s);
+  background: var(--mask-strong);
+  color: var(--text-500);
+  text-align: left;
+}
+
+.handoff-item[data-active="true"] {
+  border-color: var(--button-highlight);
+  box-shadow: inset 0 0 0 1px rgba(0, 242, 133, 0.18);
+}
+
+.handoff-item strong,
+.handoff-empty strong {
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 600;
+}
+
+.handoff-item em,
+.handoff-empty p {
+  overflow: hidden;
+  color: var(--text-300);
+  font-size: 12px;
+  font-style: normal;
+  line-height: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.handoff-empty {
+  color: var(--text-300);
+}
+
 .share-link {
   width: 100%;
   min-height: 44px;

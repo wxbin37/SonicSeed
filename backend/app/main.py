@@ -8,22 +8,33 @@ from fastapi.middleware.cors import CORSMiddleware
 from .schemas import (
     BriefRequest,
     BriefResponse,
+    CollaborationSessionJoinRequest,
+    CollaborationSessionResponse,
+    CollaborationSessionUpdateRequest,
     DemoTaskRequest,
     DemoTaskResponse,
     HealthResponse,
     InspirationCard,
     InspirationCreateRequest,
     ProjectSummary,
+    ShareLinkCreateRequest,
+    ShareLinkJoinResponse,
+    ShareLinkResponse,
     UploadResponse,
 )
 from .services import (
     build_brief,
+    create_share_link,
     create_demo_task,
     create_inspiration,
+    get_collaboration_session,
     get_demo_task,
+    join_share_link,
+    list_collaboration_sessions,
     list_demo_tasks as read_demo_tasks,
     list_inspirations,
     list_projects as read_projects,
+    update_collaboration_session,
     upsert_project,
 )
 
@@ -74,6 +85,52 @@ def list_projects() -> list[ProjectSummary]:
 @app.post("/api/projects", response_model=ProjectSummary)
 def save_project(payload: ProjectSummary) -> ProjectSummary:
     return upsert_project(payload)
+
+
+@app.post("/api/share-links", response_model=ShareLinkResponse)
+def save_share_link(payload: ShareLinkCreateRequest) -> ShareLinkResponse:
+    try:
+        return create_share_link(payload)
+    except PermissionError as error:
+        raise HTTPException(status_code=403, detail=str(error)) from error
+
+
+@app.post("/api/share-links/{token}/join", response_model=ShareLinkJoinResponse)
+def join_shared_workspace(token: str, payload: CollaborationSessionJoinRequest) -> ShareLinkJoinResponse:
+    if token != payload.shareToken:
+        raise HTTPException(status_code=400, detail="Share token mismatch")
+
+    try:
+        return join_share_link(payload)
+    except LookupError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+
+
+@app.get("/api/projects/{project_id}/collaboration-sessions", response_model=list[CollaborationSessionResponse])
+def read_collaboration_sessions(project_id: str) -> list[CollaborationSessionResponse]:
+    return list_collaboration_sessions(project_id)
+
+
+@app.get("/api/collaboration-sessions/{session_id}", response_model=CollaborationSessionResponse)
+def read_collaboration_session(session_id: str) -> CollaborationSessionResponse:
+    session = get_collaboration_session(session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Collaboration session not found")
+
+    return session
+
+
+@app.patch("/api/collaboration-sessions/{session_id}", response_model=CollaborationSessionResponse)
+def save_collaboration_session(session_id: str, payload: CollaborationSessionUpdateRequest) -> CollaborationSessionResponse:
+    try:
+        session = update_collaboration_session(session_id, payload)
+    except PermissionError as error:
+        raise HTTPException(status_code=403, detail=str(error)) from error
+
+    if session is None:
+        raise HTTPException(status_code=404, detail="Collaboration session not found")
+
+    return session
 
 
 @app.post("/api/brief", response_model=BriefResponse)

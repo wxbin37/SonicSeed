@@ -9,20 +9,31 @@ from .schemas import (
     AnalysisTag,
     BriefRequest,
     BriefResponse,
+    CollaborationSessionJoinRequest,
+    CollaborationSessionResponse,
+    CollaborationSessionUpdateRequest,
     DemoTaskRequest,
     DemoTaskResponse,
     InspirationCard,
     InspirationCreateRequest,
     ProjectSummary,
+    ShareLinkCreateRequest,
+    ShareLinkJoinResponse,
+    ShareLinkResponse,
 )
 from .storage import (
+    create_share_link_record,
     get_demo_task_record,
+    get_collaboration_session_record,
     insert_inspiration_record,
+    join_share_link_record,
+    list_collaboration_session_records,
     list_demo_task_records,
     list_inspiration_records,
     list_project_records,
     project_exists,
     store_demo_task_record,
+    update_collaboration_session_record,
     upsert_project_record,
     utc_now_label,
 )
@@ -261,3 +272,24 @@ def get_demo_task(task_id: str) -> DemoTaskResponse | None:
 
 def list_demo_tasks(project_id: str | None = None) -> list[DemoTaskResponse]:
     return list_demo_task_records(project_id)
+
+
+def create_share_link(payload: ShareLinkCreateRequest) -> ShareLinkResponse:
+    return create_share_link_record(payload.projectId, payload.creatorClientId)
+
+
+def join_share_link(payload: CollaborationSessionJoinRequest) -> ShareLinkJoinResponse:
+    project, session = join_share_link_record(payload.shareToken, payload.collaboratorClientId, payload.collaboratorName)
+    return ShareLinkJoinResponse(project=project, session=session)
+
+
+def list_collaboration_sessions(project_id: str) -> list[CollaborationSessionResponse]:
+    return list_collaboration_session_records(project_id)
+
+
+def get_collaboration_session(session_id: str) -> CollaborationSessionResponse | None:
+    return get_collaboration_session_record(session_id)
+
+
+def update_collaboration_session(session_id: str, payload: CollaborationSessionUpdateRequest) -> CollaborationSessionResponse | None:
+    return update_collaboration_session_record(session_id, payload)

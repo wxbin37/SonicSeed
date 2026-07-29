@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -62,6 +62,55 @@ class ProjectSummary(BaseModel):
     progress: int
     owner: str
     updated: str
+    creatorClientId: Optional[str] = None
+
+
+class ShareLinkCreateRequest(BaseModel):
+    projectId: str = Field(min_length=1, max_length=120)
+    creatorClientId: str = Field(min_length=1, max_length=120)
+
+
+class ShareLinkResponse(BaseModel):
+    token: str
+    projectId: str
+    creatorClientId: str
+    path: str
+    createdAt: str
+
+
+class CollaborationSessionJoinRequest(BaseModel):
+    shareToken: str = Field(min_length=8, max_length=120)
+    collaboratorClientId: str = Field(min_length=1, max_length=120)
+    collaboratorName: str = Field(default="协作者", min_length=1, max_length=80)
+
+
+class CollaborationSessionUpdateRequest(BaseModel):
+    collaboratorClientId: str = Field(min_length=1, max_length=120)
+    collaboratorName: Optional[str] = Field(default=None, max_length=80)
+    status: str = Field(default="正在修改", max_length=80)
+    progress: int = Field(default=18, ge=0, le=100)
+    lastMessage: str = Field(default="", max_length=800)
+    workbench: dict[str, Any] = Field(default_factory=dict)
+
+
+class CollaborationSessionResponse(BaseModel):
+    id: str
+    projectId: str
+    shareToken: str
+    creatorClientId: str
+    collaboratorClientId: str
+    collaboratorName: str
+    status: str
+    progress: int
+    lastMessage: str
+    workbench: dict[str, Any]
+    createdAt: str
+    updatedAt: str
+
+
+class ShareLinkJoinResponse(BaseModel):
+    project: ProjectSummary
+    session: CollaborationSessionResponse
 
 
 class UploadResponse(BaseModel):

@@ -27,18 +27,24 @@ import {
 import {
   analyzeInspiration,
   createDemoTask,
+  createShareLink,
   getApiConnectionLabel,
+  getCollaborationSession,
   getDemoTask,
   hasApiConnection,
+  joinShareLink,
+  listCollaborationSessions,
   listDemoTasks,
   listInspirations,
   listProjects,
   saveInspiration,
   saveProject,
+  updateCollaborationSession,
   uploadAudio,
   type AnalysisTag,
   type BriefAttachment,
   type BriefResponse,
+  type CollaborationSession,
   type DemoTaskResponse,
   type InspirationCard,
   type InputMode,
@@ -82,6 +88,17 @@ type CollaborationEvent = {
   time: string;
 };
 
+type WorkbenchSnapshot = {
+  messages?: ChatMessage[];
+  analysisTags?: AnalysisTag[];
+  versions?: DemoVersion[];
+  draft?: string;
+  brief?: BriefResponse | null;
+  projectId?: string;
+  activeVersionId?: string;
+  updatedAt?: string;
+};
+
 const initialMessages: ChatMessage[] = [
   {
     id: "msg_2",
@@ -118,6 +135,7 @@ const STORAGE_KEYS = {
   projects: "sonic-seed.projects",
   library: "sonic-seed.library",
   versions: "sonic-seed.versions",
+  clientId: "sonic-seed.client-id",
 };
 
 function formatBytes(size: number) {
@@ -151,6 +169,37 @@ function writeStorage<T>(key: string, value: T) {
   }
 
   window.localStorage.setItem(key, JSON.stringify(value));
+}
+
+function readStringStorage(key: string, fallback: string) {
+  if (typeof window === "undefined") {
+    return fallback;
+  }
+
+  return window.localStorage.getItem(key) ?? fallback;
+}
+
+function writeStringStorage(key: string, value: string) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.setItem(key, value);
+}
+
+function getOrCreateClientId() {
+  const current = readStringStorage(STORAGE_KEYS.clientId, "");
+  if (current) {
+    return current;
+  }
+
+  const next = `client_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  writeStringStorage(STORAGE_KEYS.clientId, next);
+  return next;
+}
+
+function getCollaboratorName(clientId: string) {
+  return clientId.startsWith("client_") ? `接力者 ${clientId.slice(-4)}` : "接力者";
 }
 
 function summarizePrompt(prompt: string) {
@@ -195,6 +244,14 @@ function getSharedProjectId() {
   }
 
   return new URLSearchParams(window.location.search).get("project") ?? "";
+}
+
+function getShareToken() {
+  if (typeof window === "undefined") {
+    return "";
+  }
+
+  return new URLSearchParams(window.location.search).get("share") ?? "";
 }
 
 function getAttachmentType(file: File): BriefAttachment["type"] {
@@ -272,6 +329,28 @@ function buildPrompt(text: string, attachments: LocalAttachment[]) {
   return [text.trim(), ...attachmentLines].filter(Boolean).join("\n");
 }
 
+function mergeProjectList(current: Project[], incoming: Project) {
+  return current.some((project) => project.id === incoming.id)
+    ? current.map((project) => (project.id === incoming.id ? { ...project, ...incoming } : project))
+    : [incoming, ...current];
+}
+
+function mergeSessionList(current: CollaborationSession[], incoming: CollaborationSession) {
+  return current.some((session) => session.id === incoming.id)
+    ? current.map((session) => (session.id === incoming.id ? incoming : session))
+    : [incoming, ...current];
+}
+
+function readWorkbenchArray<T>(workbench: Record<string, unknown>, key: keyof WorkbenchSnapshot) {
+  const value = workbench[key];
+  return Array.isArray(value) ? (value as T[]) : null;
+}
+
+function readWorkbenchString(workbench: Record<string, unknown>, key: keyof WorkbenchSnapshot) {
+  const value = workbench[key];
+  return typeof value === "string" ? value : null;
+}
+
 function HomePage() {
   return (
     <main className="home-shell" aria-label="声因入口">
@@ -293,6 +372,8 @@ function HomePage() {
 }
 
 function CreatePage() {
+  const clientId = useMemo(getOrCreateClientId, []);
+  const shareToken = useMemo(getShareToken, []);
   const [projects, setProjects] = useState<Project[]>(() => (hasApiConnection() ? [] : readStorage<Project[]>(STORAGE_KEYS.projects, [])));
   const [activeProjectId, setActiveProjectId] = useState<string>(() =>
     getSharedProjectId() || (hasApiConnection() ? "" : (readStorage<Project[]>(STORAGE_KEYS.projects, [])[0]?.id ?? "")),
@@ -312,7 +393,12 @@ function CreatePage() {
   const [shareState, setShareState] = useState("复制协作链接");
   const [events, setEvents] = useState<CollaborationEvent[]>([]);
   const [libraryCount, setLibraryCount] = useState(() => (hasApiConnection() ? 0 : readStorage<InspirationCard[]>(STORAGE_KEYS.library, []).length));
+  const [activeSession, setActiveSession] = useState<CollaborationSession | null>(null);
+  const [collaborationSessions, setCollaborationSessions] = useState<CollaborationSession[]>([]);
+  const [reviewSessionId, setReviewSessionId] = useState("");
+  const [collaborationState, setCollaborationState] = useState(() => (hasApiConnection() ? "接力未开启" : "连接后端后可共享"));
   const analysisRequestRef = useRef(0);
+  const sessionSyncRef = useRef("");
 
   const activeProject = useMemo(
     () =>
@@ -341,6 +427,18 @@ function CreatePage() {
   const currentPrompt = useMemo(() => buildPrompt(draft, attachments), [draft, attachments]);
   const currentMode = useMemo(() => inferMode(attachments), [attachments]);
   const canSubmit = currentPrompt.trim().length > 2;
+  const activeCollaborationSessions = useMemo(
+    () => collaborationSessions.filter((session) => session.projectId === activeProject.id),
+    [activeProject.id, collaborationSessions],
+  );
+  const isShareViewer = Boolean(shareToken && (!activeSession || activeSession.creatorClientId !== clientId));
+  const visibleCollaborationSessions = useMemo(
+    () => (isShareViewer ? activeCollaborationSessions.filter((session) => session.collaboratorClientId === clientId) : activeCollaborationSessions),
+    [activeCollaborationSessions, clientId, isShareViewer],
+  );
+  const hasCreatorConflict = Boolean(activeProject.creatorClientId && activeProject.creatorClientId !== clientId);
+  const canShareWorkspace = hasApiConnection() && !isShareViewer && !hasCreatorConflict;
+  const shareButtonText = !hasApiConnection() ? "连接后端后可分享" : canShareWorkspace ? shareState : "创建者可分享";
 
   useEffect(() => {
     writeStorage(STORAGE_KEYS.projects, projects);
@@ -397,6 +495,88 @@ function CreatePage() {
   }, []);
 
   useEffect(() => {
+    if (!shareToken) {
+      return;
+    }
+
+    if (!hasApiConnection()) {
+      setCollaborationState("需要连接 Python 后端才能加入接力");
+      return;
+    }
+
+    let cancelled = false;
+    setCollaborationState("正在加入私域接力");
+
+    void joinShareLink(shareToken, clientId, getCollaboratorName(clientId))
+      .then(({ project, session }) => {
+        if (cancelled) {
+          return;
+        }
+
+        setProjects((current) => mergeProjectList(current, project));
+        setActiveProjectId(project.id);
+        setActiveSession(session);
+        setReviewSessionId(session.id);
+        setCollaborationSessions((current) => mergeSessionList(current, session));
+        setCollaborationState("已加入私域接力");
+        addEvent(session.collaboratorName, "通过私域链接进入工作台");
+
+        if (Object.keys(session.workbench).length) {
+          applySessionWorkbench(session);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setCollaborationState("私域链接不可用");
+          setAnalysisState("私域链接加入失败");
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [clientId, shareToken]);
+
+  useEffect(() => {
+    if (!activeProject.id) {
+      setCollaborationSessions([]);
+      return;
+    }
+
+    if (!hasApiConnection()) {
+      setCollaborationState("连接后端后可共享");
+      return;
+    }
+
+    let cancelled = false;
+
+    const refreshSessions = () => {
+      void listCollaborationSessions(activeProject.id)
+        .then((sessions) => {
+          if (cancelled) {
+            return;
+          }
+
+          setCollaborationSessions(sessions);
+          setCollaborationState(sessions.length ? `${sessions.length} 个接力进度` : "暂无接力进度");
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setCollaborationState("接力进度同步失败");
+          }
+        });
+    };
+
+    refreshSessions();
+    const interval = window.setInterval(refreshSessions, 5000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [activeProject.id]);
+
+  useEffect(() => {
     if (!hasApiConnection()) {
       return;
     }
@@ -436,8 +616,129 @@ function CreatePage() {
     return () => window.clearTimeout(timer);
   }, [activeProject.id, canSubmit, currentMode, currentPrompt, attachments]);
 
+  useEffect(() => {
+    if (!hasApiConnection() || !activeSession || activeSession.collaboratorClientId !== clientId) {
+      return;
+    }
+
+    const snapshot = buildWorkbenchSnapshot();
+    const latestMessage = messages.length ? messages[messages.length - 1].text.slice(0, 220) : "正在整理创作工作台";
+    const nextProgress = Math.max(activeProject.progress || 0, activeVersion?.progress ?? 0, activeSession.progress);
+    const signature = JSON.stringify({
+      sessionId: activeSession.id,
+      status: analysisState,
+      progress: nextProgress,
+      latestMessage,
+      snapshot,
+    });
+
+    if (sessionSyncRef.current === signature) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      void updateCollaborationSession(activeSession.id, {
+        collaboratorClientId: clientId,
+        collaboratorName: getCollaboratorName(clientId),
+        status: analysisState,
+        progress: nextProgress,
+        lastMessage: latestMessage,
+        workbench: snapshot,
+      })
+        .then((session) => {
+          sessionSyncRef.current = signature;
+          setActiveSession(session);
+          setCollaborationSessions((current) => mergeSessionList(current, session));
+          setCollaborationState("接力进度已同步");
+        })
+        .catch(() => {
+          setCollaborationState("接力进度同步失败");
+        });
+    }, 900);
+
+    return () => window.clearTimeout(timer);
+  }, [activeProject.progress, activeSession, activeVersion?.progress, analysisState, analysisTags, brief, clientId, draft, messages, versions]);
+
   function addEvent(actor: string, action: string) {
     setEvents((current) => [{ id: `evt_${Date.now()}`, actor, action, time: nowLabel() }, ...current].slice(0, 5));
+  }
+
+  function buildWorkbenchSnapshot(overrides: Partial<WorkbenchSnapshot> = {}): WorkbenchSnapshot {
+    return {
+      messages: overrides.messages ?? messages,
+      analysisTags: overrides.analysisTags ?? analysisTags,
+      versions: overrides.versions ?? visibleVersions,
+      draft: overrides.draft ?? draft,
+      brief: overrides.brief ?? brief,
+      projectId: activeProject.id,
+      activeVersionId: overrides.activeVersionId ?? activeVersionId,
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  function applySessionWorkbench(session: CollaborationSession) {
+    const workbench = session.workbench;
+    const nextMessages = readWorkbenchArray<ChatMessage>(workbench, "messages");
+    const nextTags = readWorkbenchArray<AnalysisTag>(workbench, "analysisTags");
+    const nextVersions = readWorkbenchArray<DemoVersion>(workbench, "versions");
+    const nextDraft = readWorkbenchString(workbench, "draft");
+    const nextActiveVersionId = readWorkbenchString(workbench, "activeVersionId");
+
+    if (nextMessages) {
+      setMessages(nextMessages);
+    }
+
+    if (nextTags) {
+      setAnalysisTags(nextTags);
+    }
+
+    if (nextVersions) {
+      const nextIds = new Set(nextVersions.map((version) => version.id));
+      setVersions((current) => [...nextVersions, ...current.filter((version) => !nextIds.has(version.id) && version.projectId !== session.projectId)]);
+    }
+
+    if (typeof workbench.brief === "object") {
+      setBrief((workbench.brief ?? null) as BriefResponse | null);
+    }
+
+    if (nextDraft !== null) {
+      setDraft(nextDraft);
+    }
+
+    if (nextActiveVersionId) {
+      setActiveVersionId(nextActiveVersionId);
+    }
+
+    setAnalysisState(`${session.collaboratorName} 的接力工作台`);
+    setCollaborationState(`${session.collaboratorName} 最新进度 ${session.progress}%`);
+  }
+
+  function handleSelectProject(projectId: string) {
+    setActiveProjectId(projectId);
+    setReviewSessionId("");
+    setActiveSession((session) => (session?.projectId === projectId && session.collaboratorClientId === clientId ? session : null));
+  }
+
+  async function handleOpenCollaborationSession(sessionId: string) {
+    setReviewSessionId(sessionId);
+    const localSession = collaborationSessions.find((session) => session.id === sessionId);
+
+    if (localSession) {
+      setActiveSession(localSession);
+      setActiveProjectId(localSession.projectId);
+      applySessionWorkbench(localSession);
+    }
+
+    try {
+      const session = await getCollaborationSession(sessionId);
+      setActiveSession(session);
+      setActiveProjectId(session.projectId);
+      setCollaborationSessions((current) => mergeSessionList(current, session));
+      applySessionWorkbench(session);
+      addEvent(session.collaboratorName, "打开了接力工作台快照");
+    } catch {
+      setCollaborationState("接力工作台读取失败");
+    }
   }
 
   function ensureProject(prompt = currentPrompt) {
@@ -449,6 +750,7 @@ function CreatePage() {
                 ...project,
                 subtitle: prompt ? summarizePrompt(prompt) : project.subtitle,
                 updated: nowLabel(),
+                creatorClientId: project.creatorClientId ?? clientId,
               }
             : project,
         ),
@@ -466,6 +768,7 @@ function CreatePage() {
       progress: 12,
       owner: "我",
       updated: nowLabel(),
+      creatorClientId: clientId,
     };
     setProjects((current) => [nextProject, ...current]);
     setActiveProjectId(id);
@@ -803,6 +1106,7 @@ function CreatePage() {
       progress: 6,
       owner: "我",
       updated: nowLabel(),
+      creatorClientId: clientId,
     };
 
     setProjects((current) => [nextProject, ...current]);
@@ -811,13 +1115,48 @@ function CreatePage() {
   }
 
   async function handleCopyShareLink() {
+    if (!canShareWorkspace) {
+      setShareState(!hasApiConnection() ? "连接后端后可分享" : "只有创建者可分享");
+      window.setTimeout(() => setShareState("复制协作链接"), 2200);
+      return;
+    }
+
     const projectId = activeProject.id || ensureProject(currentPrompt || "新的创作");
-    const link = `${window.location.origin}/create?project=${encodeURIComponent(projectId)}&permission=edit`;
+    const localProject =
+      projects.find((project) => project.id === projectId) ??
+      ({
+        ...activeProject,
+        id: projectId,
+        title: activeProject.title || "未命名创作",
+        subtitle: currentPrompt ? summarizePrompt(currentPrompt) : activeProject.subtitle,
+      } satisfies Project);
+
+    if (localProject.creatorClientId && localProject.creatorClientId !== clientId) {
+      setShareState("只有创建者可分享");
+      window.setTimeout(() => setShareState("复制协作链接"), 2200);
+      return;
+    }
+
+    const projectForSharing: Project = {
+      ...localProject,
+      creatorClientId: localProject.creatorClientId ?? clientId,
+      status: localProject.status === "未保存" ? "可接力" : localProject.status,
+      updated: nowLabel(),
+    };
+
+    setShareState("生成链接中");
+    setProjects((current) => mergeProjectList(current, projectForSharing));
+
     try {
+      await saveProject(projectForSharing);
+      const share = await createShareLink(projectId, clientId);
+      const link = `${window.location.origin}${share.path}`;
       await navigator.clipboard.writeText(link);
       setShareState("链接已复制");
+      setCollaborationState("私域链接已生成，等待接力");
+      addEvent("我", "生成了私域接力链接");
     } catch {
-      setShareState(link);
+      setShareState("分享失败");
     }
 
     window.setTimeout(() => setShareState("复制协作链接"), 2200);
@@ -830,7 +1169,14 @@ function CreatePage() {
           <ArrowLeft size={19} />
         </a>
         <h1>创作工作台</h1>
-        <button className="icon-button" onClick={handleCopyShareLink} type="button" aria-label="分享创作空间">
+        <button
+          className="icon-button"
+          disabled={!canShareWorkspace}
+          onClick={handleCopyShareLink}
+          title={shareButtonText}
+          type="button"
+          aria-label="分享创作空间"
+        >
           <Share2 size={18} />
         </button>
       </header>
@@ -872,7 +1218,7 @@ function CreatePage() {
                       className="history-item"
                       data-active={project.id === activeProjectId}
                       key={project.id}
-                      onClick={() => setActiveProjectId(project.id)}
+                      onClick={() => handleSelectProject(project.id)}
                       type="button"
                     >
                       <span className="history-meta">
@@ -902,9 +1248,49 @@ function CreatePage() {
                 )}
               </div>
 
-              <button className="share-link" onClick={handleCopyShareLink} type="button">
+              <section className="handoff-panel" aria-label="私域接力进度">
+                <div className="handoff-heading">
+                  <span>
+                    <UsersRound size={14} />
+                    私域接力
+                  </span>
+                  <small>{collaborationState}</small>
+                </div>
+
+                <div className="handoff-list">
+                  {visibleCollaborationSessions.length ? (
+                    visibleCollaborationSessions.map((session) => (
+                      <button
+                        className="handoff-item"
+                        data-active={session.id === reviewSessionId}
+                        key={session.id}
+                        onClick={() => void handleOpenCollaborationSession(session.id)}
+                        type="button"
+                      >
+                        <span>
+                          <UsersRound size={13} />
+                          {session.collaboratorClientId === clientId ? "我的接力" : session.collaboratorName}
+                        </span>
+                        <strong>{session.status}</strong>
+                        <em>{session.lastMessage || "等待继续修改"}</em>
+                        <span className="progress-track" aria-label={`${session.collaboratorName}进度 ${session.progress}%`}>
+                          <span style={{ width: `${session.progress}%` }} />
+                        </span>
+                      </button>
+                    ))
+                  ) : (
+                    <article className="handoff-empty">
+                      <UsersRound size={16} />
+                      <strong>还没有接力进度</strong>
+                      <p>创建者复制私域链接后，协作者进入并修改时会显示在这里。</p>
+                    </article>
+                  )}
+                </div>
+              </section>
+
+              <button className="share-link" disabled={!canShareWorkspace} onClick={handleCopyShareLink} type="button">
                 {shareState === "复制协作链接" ? <Link2 size={16} /> : <Copy size={16} />}
-                {shareState}
+                {shareButtonText}
               </button>
 
               <div className="event-feed" aria-label="协作动态">

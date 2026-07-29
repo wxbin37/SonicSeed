@@ -76,11 +76,18 @@ uvicorn app.main:app --host 0.0.0.0 --port $PORT
 backend/.env.example
 ```
 
+如果前端域名不是 `https://museed.netlify.app`，需要把新的 Netlify 域名追加到后端 `CORS_ORIGINS`，否则浏览器会拦截前端请求。
+
 当前后端已提供最小 API 契约：
 
 - `GET /api/health`
 - `GET /api/projects`
 - `POST /api/projects`
+- `POST /api/share-links`
+- `POST /api/share-links/{token}/join`
+- `GET /api/projects/{project_id}/collaboration-sessions`
+- `GET /api/collaboration-sessions/{session_id}`
+- `PATCH /api/collaboration-sessions/{session_id}`
 - `POST /api/brief`
 - `GET /api/inspirations`
 - `POST /api/inspirations`
@@ -104,6 +111,7 @@ backend/.env.example
 | `progress` | 0-100 的进度数字 |
 | `owner` | 当前创建者或负责人显示名 |
 | `updated` | 给界面显示的更新时间文案 |
+| `creator_client_id` | 创建者浏览器身份 ID；当前无登录系统时用于限制“只有创建者可分享” |
 | `created_at` / `updated_at` | 后台真实创建 / 更新时间 |
 
 `inspirations` 保存灵感库：
@@ -133,6 +141,32 @@ backend/.env.example
 | `trace_id` | 供应商追踪 ID，用于排查错误 |
 | `prompt` | 送给模型的生成描述 |
 | `reference_brief_json` | 生成时使用的 AI Brief JSON |
+| `created_at` / `updated_at` | 后台真实创建 / 更新时间 |
+
+`share_links` 保存私域接力链接：
+
+| 字段 | 含义 |
+| --- | --- |
+| `token` | 分享链接令牌，对应前端 URL 的 `share` 参数 |
+| `project_id` | 被分享的创作空间 ID |
+| `creator_client_id` | 创建该链接的浏览器身份 ID |
+| `status` | 链接状态，当前使用 `active` |
+| `created_at` / `updated_at` | 后台真实创建 / 更新时间 |
+
+`collaboration_sessions` 保存协作者接力进度：
+
+| 字段 | 含义 |
+| --- | --- |
+| `id` | 协作者会话 ID |
+| `share_token` | 对应 `share_links.token` |
+| `project_id` | 所属创作空间 ID |
+| `creator_client_id` | 原创作空间创建者 ID |
+| `collaborator_client_id` | 协作者浏览器身份 ID |
+| `collaborator_name` | 协作者显示名 |
+| `status` | 协作者当前状态，如“实时分析中”“已加入灵感库” |
+| `progress` | 0-100 的接力进度 |
+| `last_message` | 最近一次修改摘要 |
+| `workbench_json` | 协作者完整工作台快照：聊天、AI 标签、草稿、版本、当前版本 |
 | `created_at` / `updated_at` | 后台真实创建 / 更新时间 |
 
 音乐生成走后端调用 MiniMax，不会在前端暴露密钥。未配置 `MINIMAX_API_KEY` 时，生成版本会返回明确失败状态，不会把固定样例伪装成 AI 结果。需要在后端平台配置：
