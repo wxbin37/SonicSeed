@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -202,9 +201,9 @@ export default function CreatePage() {
   return (
     <main className="create-shell" aria-label="开始创作">
       <header className="studio-topbar">
-        <Link className="icon-link" href="/" aria-label="返回首页">
+        <a className="icon-link" href="/" aria-label="返回首页">
           <ArrowLeft size={19} />
-        </Link>
+        </a>
         <h1>创作工作台</h1>
         <button className="icon-button" type="button" aria-label="分享创作空间">
           <Share2 size={18} />
