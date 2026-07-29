@@ -37,6 +37,10 @@ test("front-end defines the requested product routes", async () => {
   assert.match(app, /PanelLeftOpen/);
   assert.match(app, /handleAttachmentChange/);
   assert.match(app, /handleListenVersion/);
+  assert.match(app, /playingVersionId/);
+  assert.match(app, /Pause/);
+  assert.match(app, /version-mini-list/);
+  assert.doesNotMatch(app, /setDraft\(promptForTask\)/);
   assert.match(app, /handleSaveInspiration/);
   assert.match(app, /私域接力/);
   assert.match(app, /getProjectWorkspace/);
@@ -200,6 +204,8 @@ test("uses split deployment settings and visual constraints", async () => {
   assert.match(css, /selected-seeds-panel/);
   assert.match(css, /prompt-config-panel/);
   assert.match(css, /message-audio-result/);
+  assert.match(css, /version-mini-item/);
+  assert.match(css, /version-listen-button\.is-playing/);
   assert.match(css, /--background:\s*#0d0d0d/i);
   assert.match(css, /--button-highlight:\s*#00f285/i);
   assert.match(css, /@keyframes status-pulse/);

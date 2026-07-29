@@ -779,6 +779,108 @@ h3 {
   border-radius: var(--corner-s);
 }
 
+.version-listen-button.is-playing {
+  border: 1px solid rgba(0, 242, 133, 0.5);
+  background: var(--mask);
+  color: var(--button-highlight);
+  box-shadow: none;
+}
+
+.version-rail-summary {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-100);
+  max-width: 168px;
+}
+
+.version-mini-list {
+  display: grid;
+  width: 100%;
+  max-width: 168px;
+  gap: var(--space-200);
+  margin-top: var(--space-200);
+}
+
+.version-mini-item {
+  position: relative;
+  display: grid;
+  width: 100%;
+  min-height: 74px;
+  grid-template-columns: minmax(0, 1fr) 18px;
+  gap: var(--space-100) var(--space-200);
+  padding: var(--space-200);
+  overflow: hidden;
+  border: 1px solid var(--divider);
+  border-radius: var(--corner-s);
+  background: var(--mask-strong);
+  color: var(--text-400);
+  text-align: left;
+}
+
+.version-mini-item[data-active="true"] {
+  border-color: rgba(0, 242, 133, 0.5);
+  background: var(--mask);
+}
+
+.version-mini-item[data-playing="true"] {
+  color: var(--text-500);
+}
+
+.version-mini-index {
+  grid-column: 1 / -1;
+  color: var(--button-highlight) !important;
+  font-weight: 700;
+}
+
+.version-mini-copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.version-mini-copy strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.version-mini-copy em {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--text-300);
+  font-size: 11px;
+  font-style: normal;
+  line-height: 14px;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.version-mini-item svg {
+  align-self: center;
+  color: var(--button-highlight);
+}
+
+.version-mini-progress {
+  grid-column: 1 / -1;
+  height: 3px;
+  overflow: hidden;
+  border-radius: var(--corner-round);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.version-mini-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--button-highlight);
+}
+
+.version-empty-copy,
+.version-more {
+  width: 100%;
+  text-align: center;
+}
+
 .analysis-panel {
   display: flex;
   flex-direction: column;
@@ -1360,7 +1462,7 @@ h3 {
   }
 
   .workbench-body {
-    grid-template-columns: minmax(0, 1fr) 72px;
+    grid-template-columns: minmax(0, 1fr) 168px;
   }
 }
 

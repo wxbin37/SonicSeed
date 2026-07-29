@@ -16,6 +16,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Paperclip,
+  Pause,
   Play,
   Plus,
   Send,
@@ -528,6 +529,7 @@ function CreatePage() {
     hasApiConnection() ? "" : (readStorage<DemoVersion[]>(STORAGE_KEYS.versions, [])[0]?.id ?? ""),
   );
   const [listenState, setListenState] = useState("暂无可试听版本");
+  const [playingVersionId, setPlayingVersionId] = useState("");
   const [shareState, setShareState] = useState("复制协作链接");
   const [events, setEvents] = useState<CollaborationEvent[]>([]);
   const [libraryCount, setLibraryCount] = useState(() => (hasApiConnection() ? 0 : readStorage<InspirationCard[]>(STORAGE_KEYS.library, []).length));
@@ -551,6 +553,8 @@ function CreatePage() {
   const projectWorkspaceSyncRef = useRef("");
   const newProjectRef = useRef("");
   const creationSelectionInitializedRef = useRef(false);
+  const versionAudioRef = useRef<HTMLAudioElement | null>(null);
+  const versionAudioIdRef = useRef("");
   const [loadedWorkspaceProjectId, setLoadedWorkspaceProjectId] = useState("");
 
   const activeProject = useMemo(
@@ -576,6 +580,7 @@ function CreatePage() {
     () => visibleVersions.find((version) => version.id === activeVersionId) ?? visibleVersions[0],
     [activeVersionId, visibleVersions],
   );
+  const isActiveVersionPlaying = Boolean(activeVersion && playingVersionId === activeVersion.id);
 
   const currentPrompt = useMemo(() => buildPrompt(draft, attachments), [draft, attachments]);
   const currentMode = useMemo(() => inferMode(attachments), [attachments]);
@@ -602,6 +607,14 @@ function CreatePage() {
     [creationSeeds, selectedCreationIds],
   );
   const creationKinds = useMemo(() => Array.from(new Set(creationSeeds.map((seed) => seed.kind))), [creationSeeds]);
+
+  useEffect(() => {
+    return () => {
+      versionAudioRef.current?.pause();
+      versionAudioRef.current = null;
+      versionAudioIdRef.current = "";
+    };
+  }, []);
 
   useEffect(() => {
     writeStorage(STORAGE_KEYS.projects, projects);
@@ -1164,7 +1177,7 @@ function CreatePage() {
   async function handleApplyCreationSetup(shouldGenerate: boolean) {
     const promptForTask = buildCreationSetupPrompt();
     const projectId = ensureProject(promptForTask);
-    setDraft(promptForTask);
+    setDraft("");
     setCreationModalOpen(false);
     setMessages((current) => [
       ...current,
@@ -1514,34 +1527,69 @@ function CreatePage() {
     }
   }
 
-  async function handleListenVersion() {
-    if (!activeVersion) {
+  async function handleListenVersion(targetVersion = activeVersion) {
+    if (!targetVersion) {
       setListenState("还没有历史版本");
       return;
     }
 
-    setListenState(`试听 ${activeVersion.title}`);
+    setActiveVersionId(targetVersion.id);
 
-    if (activeVersion.audioUrl) {
+    if (!targetVersion.audioUrl) {
+      setPlayingVersionId("");
+      setListenState(`${targetVersion.title} 暂无音频`);
+      return;
+    }
+
+    const currentAudio = versionAudioRef.current;
+    if (versionAudioIdRef.current === targetVersion.id && currentAudio) {
+      if (!currentAudio.paused) {
+        currentAudio.pause();
+        setPlayingVersionId("");
+        setListenState(`${targetVersion.title} 已暂停`);
+        return;
+      }
+
       try {
-        await new Audio(activeVersion.audioUrl).play();
+        await currentAudio.play();
+        setPlayingVersionId(targetVersion.id);
+        setListenState(`正在播放 ${targetVersion.title}`);
       } catch {
         setListenState("浏览器暂时不能播放该音频");
       }
-    } else {
-      setListenState(`${activeVersion.title} 暂无音频`);
+
+      return;
     }
 
-    setVersions((current) => {
-      if (visibleVersions.length < 2) {
-        return current;
-      }
+    currentAudio?.pause();
 
-      const currentIndex = visibleVersions.findIndex((version) => version.id === activeVersion.id);
-      const nextVersion = visibleVersions[(currentIndex + 1) % visibleVersions.length];
-      setActiveVersionId(nextVersion.id);
-      return current;
+    const nextAudio = new Audio(targetVersion.audioUrl);
+    versionAudioRef.current = nextAudio;
+    versionAudioIdRef.current = targetVersion.id;
+    setListenState(`试听 ${targetVersion.title}`);
+
+    nextAudio.addEventListener("ended", () => {
+      if (versionAudioIdRef.current === targetVersion.id) {
+        setPlayingVersionId("");
+        setListenState(`${targetVersion.title} 播放完成`);
+      }
     });
+
+    nextAudio.addEventListener("error", () => {
+      if (versionAudioIdRef.current === targetVersion.id) {
+        setPlayingVersionId("");
+        setListenState("浏览器暂时不能播放该音频");
+      }
+    });
+
+    try {
+      await nextAudio.play();
+      setPlayingVersionId(targetVersion.id);
+      setListenState(`正在播放 ${targetVersion.title}`);
+    } catch {
+      setPlayingVersionId("");
+      setListenState("浏览器暂时不能播放该音频");
+    }
   }
 
   function handleCreateProject() {
@@ -1876,13 +1924,53 @@ function CreatePage() {
               </div>
 
               <aside className="version-rail" aria-label="历史版本试听">
-                <button className="version-listen-button" onClick={() => void handleListenVersion()} type="button" aria-label="试听之前版本">
-                  <Headphones size={24} />
+                <button
+                  className={`version-listen-button ${isActiveVersionPlaying ? "is-playing" : ""}`}
+                  onClick={() => void handleListenVersion()}
+                  type="button"
+                  aria-label={isActiveVersionPlaying ? "暂停当前版本" : "试听当前版本"}
+                >
+                  {isActiveVersionPlaying ? <Pause size={24} /> : <Headphones size={24} />}
                 </button>
-                <p>{listenState}</p>
-                <strong>{activeVersion?.title ?? "暂无版本"}</strong>
-                <span>{activeVersion?.status ?? "生成后可听"}</span>
-                <span>{activeVersion ? `${activeVersion.progress}%` : `${visibleVersions.length} 个版本`}</span>
+                <div className="version-rail-summary">
+                  <p>{listenState}</p>
+                  <strong>{activeVersion?.title ?? "暂无版本"}</strong>
+                  <span>{activeVersion ? `${activeVersion.status} · ${activeVersion.progress}%` : "生成后可听"}</span>
+                </div>
+
+                <div className="version-mini-list" aria-label="版本迭代记录">
+                  {visibleVersions.length ? (
+                    visibleVersions.slice(0, 5).map((version) => {
+                      const isSelected = activeVersion?.id === version.id;
+                      const isPlaying = playingVersionId === version.id;
+                      const clampedProgress = Math.min(100, Math.max(0, Math.round(version.progress)));
+
+                      return (
+                        <button
+                          key={version.id}
+                          className="version-mini-item"
+                          data-active={isSelected}
+                          data-playing={isPlaying}
+                          onClick={() => void handleListenVersion(version)}
+                          type="button"
+                        >
+                          <span className="version-mini-index">{version.title.replace("版本 ", "V")}</span>
+                          <span className="version-mini-copy">
+                            <strong>{isPlaying ? "正在播放" : version.status}</strong>
+                            <em>{version.audioUrl ? "可试听" : version.note}</em>
+                          </span>
+                          {isPlaying ? <Pause size={15} /> : <Play size={15} />}
+                          <span className="version-mini-progress" aria-hidden="true">
+                            <span style={{ width: `${clampedProgress}%` }} />
+                          </span>
+                        </button>
+                      );
+                    })
+                  ) : (
+                    <p className="version-empty-copy">生成试听版后会出现在这里。</p>
+                  )}
+                  {visibleVersions.length > 5 && <span className="version-more">还有 {visibleVersions.length - 5} 个历史版本</span>}
+                </div>
               </aside>
             </div>
           </section>
