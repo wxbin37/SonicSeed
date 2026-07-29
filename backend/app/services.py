@@ -206,6 +206,24 @@ def parse_minimax_audio(audio: object) -> str | None:
     return f"data:audio/mpeg;base64,{encoded_audio}"
 
 
+def extract_minimax_lyrics(result: dict[str, object], default_lyrics: str) -> str:
+    candidate_keys = {"lyrics", "lyric", "generated_lyrics", "optimized_lyrics"}
+    stack: list[object] = [result.get("data") or {}, result.get("extra_info") or {}, result]
+
+    while stack:
+        current = stack.pop()
+        if isinstance(current, dict):
+            for key, value in current.items():
+                if key in candidate_keys and isinstance(value, str) and value.strip():
+                    return value.strip()[:3500]
+                if isinstance(value, (dict, list)):
+                    stack.append(value)
+        elif isinstance(current, list):
+            stack.extend(current)
+
+    return default_lyrics
+
+
 def call_minimax_music(payload: DemoTaskRequest) -> DemoTaskResponse:
     api_key = os.getenv("MINIMAX_API_KEY", "").strip()
     if not api_key:
@@ -227,6 +245,7 @@ def call_minimax_music(payload: DemoTaskRequest) -> DemoTaskResponse:
         "prompt": build_music_prompt(payload),
         "lyrics_optimizer": True,
         "is_instrumental": False,
+        "lyrics": lyrics,
         "output_format": "url",
         "stream": False,
         "audio_setting": {
@@ -273,13 +292,14 @@ def call_minimax_music(payload: DemoTaskRequest) -> DemoTaskResponse:
         )
 
     audio_url = parse_minimax_audio((result.get("data") or {}).get("audio"))
+    generated_lyrics = extract_minimax_lyrics(result, lyrics)
     if not audio_url:
         return DemoTaskResponse(
             taskId=task_id,
             status="failed",
             message="MiniMax 未返回可播放音频。",
             progress=0,
-            lyrics=lyrics,
+            lyrics=generated_lyrics,
             provider="MiniMax",
             traceId=result.get("trace_id"),
         )
@@ -290,7 +310,7 @@ def call_minimax_music(payload: DemoTaskRequest) -> DemoTaskResponse:
         message="MiniMax 已返回音频，URL 有效期约 24 小时，请后续接入对象存储做持久化。",
         progress=100,
         audioUrl=audio_url,
-        lyrics=lyrics,
+        lyrics=generated_lyrics,
         provider="MiniMax",
         traceId=result.get("trace_id"),
     )

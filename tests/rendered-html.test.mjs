@@ -139,6 +139,8 @@ test("back-end calls MiniMax only through server-side configuration", async () =
   assert.match(services, /output_format/);
   assert.match(services, /lyrics_optimizer/);
   assert.match(services, /is_instrumental/);
+  assert.match(services, /extract_minimax_lyrics/);
+  assert.match(services, /generated_lyrics/);
   assert.match(services, /music-3\.0-free/);
   assert.match(services, /未配置 MINIMAX_API_KEY/);
   assert.doesNotMatch(services, /fallback|mock|固定样例/i);
