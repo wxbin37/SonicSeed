@@ -7,6 +7,7 @@ from uuid import uuid4
 
 import httpx
 
+from .env_loader import load_local_env
 from .schemas import (
     AnalysisTag,
     BriefRequest,
@@ -44,6 +45,8 @@ from .storage import (
     utc_now_label,
 )
 from .upload_store import read_upload_bytes
+
+load_local_env()
 
 
 DATA_FLOW = [

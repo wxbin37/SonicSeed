@@ -72,15 +72,17 @@ test("front-end defines the requested product routes", async () => {
 });
 
 test("back-end exposes the split deployment API contract", async () => {
-  const [main, schemas, storage, uploadStore, requirements] = await Promise.all([
+  const [main, schemas, storage, uploadStore, envLoader, requirements] = await Promise.all([
     readFile(new URL("../backend/app/main.py", import.meta.url), "utf8"),
     readFile(new URL("../backend/app/schemas.py", import.meta.url), "utf8"),
     readFile(new URL("../backend/app/storage.py", import.meta.url), "utf8"),
     readFile(new URL("../backend/app/upload_store.py", import.meta.url), "utf8"),
+    readFile(new URL("../backend/app/env_loader.py", import.meta.url), "utf8"),
     readFile(new URL("../backend/requirements.txt", import.meta.url), "utf8"),
   ]);
 
   assert.match(main, /FastAPI/);
+  assert.match(main, /load_local_env/);
   assert.match(main, /@app\.get\("\/api\/health"/);
   assert.match(main, /@app\.get\("\/api\/projects"/);
   assert.match(main, /@app\.post\("\/api\/projects"/);
@@ -117,6 +119,8 @@ test("back-end exposes the split deployment API contract", async () => {
   assert.match(uploadStore, /SONIC_SEED_UPLOAD_DIR/);
   assert.match(uploadStore, /save_upload_bytes/);
   assert.match(uploadStore, /read_upload_bytes/);
+  assert.match(envLoader, /\.env\.local/);
+  assert.match(envLoader, /os\.environ/);
   assert.match(storage, /CREATE TABLE IF NOT EXISTS projects/);
   assert.match(storage, /CREATE TABLE IF NOT EXISTS project_workspaces/);
   assert.match(storage, /CREATE TABLE IF NOT EXISTS inspirations/);

@@ -12,6 +12,8 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
 ```
 
+For local secrets, put values in `backend/.env.local`. The backend loads `.env.local` automatically, and the file is ignored by Git.
+
 ## API Surface
 
 - `GET /api/health`

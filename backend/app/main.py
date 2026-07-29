@@ -5,6 +5,7 @@ from uuid import uuid4
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
+from .env_loader import load_local_env
 from .schemas import (
     BriefRequest,
     BriefResponse,
@@ -42,6 +43,8 @@ from .services import (
     upsert_project,
 )
 from .upload_store import save_upload_bytes
+
+load_local_env()
 
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 SUPPORTED_AUDIO_TYPES = {
