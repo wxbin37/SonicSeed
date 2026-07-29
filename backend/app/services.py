@@ -65,6 +65,21 @@ TASKS: dict[str, StoredTask] = {}
 def build_brief(payload: BriefRequest) -> BriefResponse:
     text = payload.content or "新的灵感素材"
     city_tone = any(keyword in text for keyword in ["城市", "出租车", "雨", "告别", "离开", "再见"])
+    attachment_count = len(payload.attachments)
+    mode_labels = {
+        "dialogue": "对话",
+        "text": "文字",
+        "humming": "哼唱",
+        "image": "图片",
+        "voice": "语音",
+    }
+    mode_summaries = {
+        "dialogue": "已把对话整理为创作目标、限制条件和下一步问题。",
+        "text": "已保留文本原文，并拆出歌词结构和可扩写位置。",
+        "humming": "已接收旋律素材，下一步应转码并提取 BPM、调性和旋律轮廓。",
+        "image": "已把视觉素材转成场景、意象和氛围参考。",
+        "voice": "已把口述反馈整理为版本修改点和协作接力建议。",
+    }
 
     tags = [
         AnalysisTag(
@@ -90,8 +105,8 @@ def build_brief(payload: BriefRequest) -> BriefResponse:
     ]
 
     return BriefResponse(
-        title="像明天还会见" if city_tone else "新的创作片段",
-        summary=f"已保留原始内容，并根据 {payload.mode} 输入整理成可继续创作的 Brief。",
+        title="像明天还会见" if city_tone else f"{mode_labels[payload.mode]}灵感片段",
+        summary=f"{mode_summaries[payload.mode]}已绑定 {attachment_count} 个附件。",
         tags=tags,
         suggestedStyle="都市流行 / 中慢速 / 钢琴与电子氛围" if city_tone else "温暖流行 / 轻鼓组 / 留白编曲",
         dataFlow=DATA_FLOW,
@@ -112,6 +127,7 @@ def create_demo_task(payload: DemoTaskRequest) -> DemoTaskResponse:
         taskId=task_id,
         status="queued",
         message=TASKS[task_id].message,
+        progress=10,
     )
 
 
@@ -124,8 +140,12 @@ def get_demo_task(task_id: str) -> DemoTaskResponse | None:
     if elapsed > 8:
         task.status = "succeeded"
         task.message = "Demo 已生成并保存到音频存储，前端可以刷新成品区。"
+        progress = 100
     elif elapsed > 2:
         task.status = "running"
         task.message = "供应商任务轮询中，当前处于编曲生成阶段。"
+        progress = 62
+    else:
+        progress = 24
 
-    return DemoTaskResponse(taskId=task.id, status=task.status, message=task.message)
+    return DemoTaskResponse(taskId=task.id, status=task.status, message=task.message, progress=progress)

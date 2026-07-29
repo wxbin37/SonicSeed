@@ -6,10 +6,17 @@ export type AnalysisTag = {
   detail: string;
 };
 
+export type BriefAttachment = {
+  type: "audio" | "image" | "note";
+  name: string;
+  uploadId?: string;
+};
+
 export type BriefRequest = {
   projectId: string;
   mode: InputMode;
   content: string;
+  attachments?: BriefAttachment[];
 };
 
 export type BriefResponse = {
@@ -31,6 +38,17 @@ export type DemoTaskResponse = {
   taskId: string;
   status: "queued" | "running" | "succeeded" | "failed";
   message: string;
+  audioUrl?: string;
+  progress?: number;
+};
+
+export type UploadResponse = {
+  uploadId: string;
+  filename: string;
+  contentType: string;
+  sizeBytes: number;
+  normalizedFormat: string;
+  nextStep: string;
 };
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "";
@@ -49,11 +67,26 @@ const defaultFlow = [
 function localBrief(payload: BriefRequest): BriefResponse {
   const text = payload.content || "新的灵感素材";
   const cityTone = /城市|出租车|雨|告别|离开/.test(text);
+  const modeLabel: Record<InputMode, string> = {
+    dialogue: "对话",
+    text: "文字",
+    humming: "哼唱",
+    image: "图片",
+    voice: "语音",
+  };
+
+  const modeSummary: Record<InputMode, string> = {
+    dialogue: "已把对话整理为创作目标、限制条件和下一步问题。",
+    text: "已保留原文，并拆出可用于歌词结构的位置建议。",
+    humming: "已把参考录音纳入旋律轮廓上下文，等待后端提取 BPM、调性和音高。",
+    image: "已把图片说明整理成场景、意象和视觉氛围。",
+    voice: "已把口述内容整理为可执行修改点和协作反馈。",
+  };
 
   return {
     source: "local",
-    title: cityTone ? "像明天还会见" : "新的创作片段",
-    summary: `已保留原始内容，并根据${payload.mode}输入整理成可继续创作的 Brief。`,
+    title: cityTone ? "像明天还会见" : `${modeLabel[payload.mode]}灵感片段`,
+    summary: modeSummary[payload.mode],
     suggestedStyle: cityTone ? "都市流行 / 中慢速 / 钢琴与电子氛围" : "温暖流行 / 轻鼓组 / 留白编曲",
     tags: [
       {
@@ -128,6 +161,54 @@ export async function createDemoTask(payload: DemoTaskRequest): Promise<DemoTask
   }
 
   return response.json() as Promise<DemoTaskResponse>;
+}
+
+export async function getDemoTask(taskId: string): Promise<DemoTaskResponse> {
+  if (!API_BASE_URL) {
+    await new Promise((resolve) => setTimeout(resolve, 420));
+    return {
+      taskId,
+      status: "succeeded",
+      progress: 100,
+      message: "本地模拟任务已完成；未连接音乐模型，所以不会生成真实音频文件。",
+    };
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/demo-tasks/${encodeURIComponent(taskId)}`);
+
+  if (!response.ok) {
+    throw new Error(`Demo task polling failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<DemoTaskResponse>;
+}
+
+export async function uploadAudio(file: File): Promise<UploadResponse> {
+  if (!API_BASE_URL) {
+    await new Promise((resolve) => setTimeout(resolve, 360));
+    return {
+      uploadId: `local_upload_${Date.now()}`,
+      filename: file.name,
+      contentType: file.type || "application/octet-stream",
+      sizeBytes: file.size,
+      normalizedFormat: "local-preview",
+      nextStep: "连接 Python 后端后会执行音频校验、转码和旋律分析。",
+    };
+  }
+
+  const form = new FormData();
+  form.append("file", file);
+
+  const response = await fetch(`${API_BASE_URL}/api/uploads`, {
+    method: "POST",
+    body: form,
+  });
+
+  if (!response.ok) {
+    throw new Error(`Upload failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<UploadResponse>;
 }
 
 export function getApiConnectionLabel() {

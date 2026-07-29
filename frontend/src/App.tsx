@@ -1,22 +1,26 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   ArrowLeft,
   Bot,
   CheckCircle2,
   Clock3,
+  Copy,
   Database,
+  FileText,
   GitBranch,
   HardDrive,
   Headphones,
   Image as ImageIcon,
+  ImagePlus,
   Library,
   Link2,
   ListMusic,
+  Loader2,
   MessageCircle,
   Mic,
   Music2,
-  Paperclip,
+  Pause,
   Play,
   Plus,
   Radio,
@@ -24,18 +28,24 @@ import {
   Send,
   Server,
   Share2,
+  Square,
   Tags,
   Type,
   Upload,
   UsersRound,
+  Wand2,
 } from "lucide-react";
 import {
   analyzeInspiration,
   createDemoTask,
   getApiConnectionLabel,
+  getDemoTask,
+  uploadAudio,
   type AnalysisTag,
+  type BriefAttachment,
   type BriefResponse,
   type InputMode,
+  type UploadResponse,
 } from "./api";
 
 type InputSource = {
@@ -57,10 +67,66 @@ type Project = {
 };
 
 type DemoVersion = {
+  id: string;
   title: string;
   meta: string;
   note: string;
   status: string;
+  progress: number;
+  taskId?: string;
+  audioUrl?: string;
+};
+
+type ChatMessage = {
+  id: string;
+  role: "user" | "ai";
+  label: string;
+  text: string;
+};
+
+type CollaborationEvent = {
+  id: string;
+  actor: string;
+  action: string;
+  time: string;
+};
+
+type SourceData = {
+  dialogue: {
+    draft: string;
+    messages: ChatMessage[];
+  };
+  text: {
+    title: string;
+    body: string;
+    section: "主歌" | "副歌 Hook" | "Bridge";
+    preserveOriginal: boolean;
+    allowExpand: boolean;
+  };
+  humming: {
+    note: string;
+    fileName: string;
+    fileSize: string;
+    audioUrl: string;
+    uploadId: string;
+    uploadStatus: string;
+  };
+  image: {
+    note: string;
+    mood: string;
+    fileName: string;
+    previewUrl: string;
+    uploadStatus: string;
+  };
+  voice: {
+    transcript: string;
+    note: string;
+    fileName: string;
+    fileSize: string;
+    audioUrl: string;
+    uploadId: string;
+    uploadStatus: string;
+  };
 };
 
 const inputSources: InputSource[] = [
@@ -101,7 +167,7 @@ const inputSources: InputSource[] = [
   },
 ];
 
-const projects: Project[] = [
+const initialProjects: Project[] = [
   {
     id: "city-leave",
     title: "离开城市之前",
@@ -139,6 +205,57 @@ const projects: Project[] = [
     updated: "昨天 22:08",
   },
 ];
+
+const initialSources: SourceData = {
+  dialogue: {
+    draft: "这首歌想像一个人离开深圳前的最后一晚，鼓要轻一点。",
+    messages: [
+      {
+        id: "msg_intro",
+        role: "user",
+        label: "我",
+        text: "我们把告别说得像明天还会见。",
+      },
+      {
+        id: "msg_ai",
+        role: "ai",
+        label: "AI",
+        text: "这句可以作为 Hook 落点；建议补一段离开城市的具体场景。",
+      },
+    ],
+  },
+  text: {
+    title: "像明天还会见",
+    body: "我们把告别说得像明天还会见。",
+    section: "副歌 Hook",
+    preserveOriginal: true,
+    allowExpand: true,
+  },
+  humming: {
+    note: "副歌想要上行，最后一个音停得久一点，适合中慢速都市流行。",
+    fileName: "",
+    fileSize: "",
+    audioUrl: "",
+    uploadId: "",
+    uploadStatus: "等待录音或上传",
+  },
+  image: {
+    note: "雨夜出租车，窗外霓虹有点糊，画面不要太悲伤，像忍住了。",
+    mood: "雨夜 / 霓虹 / 克制",
+    fileName: "",
+    previewUrl: "",
+    uploadStatus: "等待图片",
+  },
+  voice: {
+    transcript: "合作方说副歌旋律可以保留，但第二句歌词太书面，希望更口语一点。",
+    note: "作为协作反馈回流，不覆盖原版本，生成一个歌词修改分支。",
+    fileName: "",
+    fileSize: "",
+    audioUrl: "",
+    uploadId: "",
+    uploadStatus: "等待口述录音",
+  },
+};
 
 const initialTags: AnalysisTag[] = [
   {
@@ -185,23 +302,35 @@ const stack = [
 
 const initialDemos: DemoVersion[] = [
   {
+    id: "demo_v1",
     title: "Demo V1",
     meta: "都市流行 · 76 BPM · 钢琴与电子氛围",
     note: "主歌情绪对了，副歌鼓组还需要更轻。",
     status: "已试听 6 次",
+    progress: 100,
   },
   {
+    id: "demo_v2",
     title: "Demo V2",
     meta: "Instrumental · Mureka task_48",
     note: "等待生成完成后自动保存到成品区。",
     status: "生成中",
+    progress: 64,
   },
   {
+    id: "hook_branch",
     title: "Hook 分支",
     meta: "合作方改词 · 编辑权限链接",
     note: "林雨正在把第二句改得更口语。",
     status: "协作中",
+    progress: 48,
   },
+];
+
+const initialEvents: CollaborationEvent[] = [
+  { id: "evt_1", actor: "我", action: "上传了副歌哼唱参考", time: "2分钟前" },
+  { id: "evt_2", actor: "林雨", action: "修改了 Hook 第二句", time: "12分钟前" },
+  { id: "evt_3", actor: "陈舟", action: "给 Demo V1 留下试听反馈", time: "今天 15:20" },
 ];
 
 const libraryCards = [
@@ -235,6 +364,18 @@ const libraryCards = [
   },
 ];
 
+function formatBytes(size: number) {
+  if (size < 1024 * 1024) {
+    return `${Math.max(1, Math.round(size / 1024))} KB`;
+  }
+
+  return `${(size / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function nowLabel() {
+  return "刚刚";
+}
+
 function HomePage() {
   return (
     <main className="home-shell" aria-label="声因入口">
@@ -257,12 +398,20 @@ function HomePage() {
 
 function CreatePage() {
   const [activeMode, setActiveMode] = useState<InputMode>("humming");
-  const [activeProjectId, setActiveProjectId] = useState(projects[0].id);
-  const [draft, setDraft] = useState("我们把告别说得像明天还会见。");
+  const [projects, setProjects] = useState<Project[]>(initialProjects);
+  const [activeProjectId, setActiveProjectId] = useState(initialProjects[0].id);
+  const [sources, setSources] = useState<SourceData>(initialSources);
   const [analysisTags, setAnalysisTags] = useState<AnalysisTag[]>(initialTags);
   const [brief, setBrief] = useState<BriefResponse | null>(null);
-  const [analysisState, setAnalysisState] = useState("等待输入");
+  const [analysisState, setAnalysisState] = useState("实时分析待命");
   const [demos, setDemos] = useState<DemoVersion[]>(initialDemos);
+  const [events, setEvents] = useState<CollaborationEvent[]>(initialEvents);
+  const [shareState, setShareState] = useState("复制协作链接");
+  const [recordingTarget, setRecordingTarget] = useState<"humming" | "voice" | null>(null);
+
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const analysisRequestRef = useRef(0);
 
   const activeSource = useMemo(
     () => inputSources.find((source) => source.id === activeMode) ?? inputSources[2],
@@ -271,24 +420,249 @@ function CreatePage() {
 
   const activeProject = useMemo(
     () => projects.find((project) => project.id === activeProjectId) ?? projects[0],
-    [activeProjectId],
+    [activeProjectId, projects],
   );
 
-  async function handleAnalyze() {
-    setAnalysisState("分析中");
+  const activeContent = useMemo(() => buildModeContent(activeMode, sources), [activeMode, sources]);
+
+  const canSubmit = activeContent.content.trim().length > 2 || activeContent.attachments.length > 0;
+
+  useEffect(() => {
+    if (!canSubmit) {
+      setAnalysisState("等待输入");
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      void runAnalysis("auto");
+    }, 850);
+
+    return () => window.clearTimeout(timer);
+  }, [activeMode, activeProject.id, activeContent.content, canSubmit]);
+
+  function addEvent(actor: string, action: string) {
+    setEvents((current) => [{ id: `evt_${Date.now()}`, actor, action, time: nowLabel() }, ...current].slice(0, 5));
+  }
+
+  function updateSource<K extends InputMode>(mode: K, patch: Partial<SourceData[K]>) {
+    setSources((current) => ({ ...current, [mode]: { ...current[mode], ...patch } }) as SourceData);
+  }
+
+  function buildModeContent(mode: InputMode, state: SourceData) {
+    if (mode === "dialogue") {
+      const transcript = state.dialogue.messages.map((message) => `${message.label}: ${message.text}`).join("\n");
+      return {
+        content: `${transcript}\n当前输入: ${state.dialogue.draft}`.trim(),
+        attachments: [] as BriefAttachment[],
+      };
+    }
+
+    if (mode === "text") {
+      return {
+        content: [
+          `标题: ${state.text.title || "未命名歌词"}`,
+          `位置: ${state.text.section}`,
+          `保留原文: ${state.text.preserveOriginal ? "是" : "否"}`,
+          `允许扩写: ${state.text.allowExpand ? "是" : "否"}`,
+          `原文: ${state.text.body}`,
+        ].join("\n"),
+        attachments: [{ type: "note" as const, name: state.text.title || "歌词草稿" }],
+      };
+    }
+
+    if (mode === "humming") {
+      return {
+        content: [
+          state.humming.fileName ? `参考音频: ${state.humming.fileName} ${state.humming.fileSize}` : "还没有上传哼唱音频",
+          state.humming.uploadId ? `uploadId: ${state.humming.uploadId}` : "",
+          `旋律说明: ${state.humming.note}`,
+        ]
+          .filter(Boolean)
+          .join("\n"),
+        attachments: state.humming.fileName
+          ? [{ type: "audio" as const, name: state.humming.fileName, uploadId: state.humming.uploadId || undefined }]
+          : [],
+      };
+    }
+
+    if (mode === "image") {
+      return {
+        content: [
+          state.image.fileName ? `图片: ${state.image.fileName}` : "还没有上传图片",
+          `视觉情绪: ${state.image.mood}`,
+          `画面说明: ${state.image.note}`,
+        ].join("\n"),
+        attachments: state.image.fileName ? [{ type: "image" as const, name: state.image.fileName }] : [],
+      };
+    }
+
+    return {
+      content: [
+        state.voice.fileName ? `口述录音: ${state.voice.fileName} ${state.voice.fileSize}` : "还没有上传口述录音",
+        state.voice.uploadId ? `uploadId: ${state.voice.uploadId}` : "",
+        `转写/摘要: ${state.voice.transcript}`,
+        `处理要求: ${state.voice.note}`,
+      ]
+        .filter(Boolean)
+        .join("\n"),
+      attachments: state.voice.fileName
+        ? [{ type: "audio" as const, name: state.voice.fileName, uploadId: state.voice.uploadId || undefined }]
+        : [],
+    };
+  }
+
+  async function runAnalysis(reason: "auto" | "manual") {
+    if (!canSubmit) {
+      setAnalysisState("等待输入");
+      return;
+    }
+
+    const requestId = analysisRequestRef.current + 1;
+    analysisRequestRef.current = requestId;
+    setAnalysisState(reason === "auto" ? "实时分析中" : "手动分析中");
+
     try {
       const nextBrief = await analyzeInspiration({
         projectId: activeProject.id,
         mode: activeMode,
-        content: draft,
+        content: activeContent.content,
+        attachments: activeContent.attachments,
       });
+
+      if (analysisRequestRef.current !== requestId) {
+        return;
+      }
 
       setBrief(nextBrief);
       setAnalysisTags(nextBrief.tags);
       setAnalysisState(nextBrief.source === "backend" ? "后端已同步" : "本地模拟完成");
     } catch {
-      setAnalysisState("后端请求失败，保留当前标签");
+      if (analysisRequestRef.current === requestId) {
+        setAnalysisState("后端请求失败");
+      }
     }
+  }
+
+  function handleSendDialogue() {
+    const text = sources.dialogue.draft.trim();
+    if (!text) {
+      return;
+    }
+
+    const userMessage: ChatMessage = {
+      id: `msg_${Date.now()}`,
+      role: "user",
+      label: "我",
+      text,
+    };
+
+    setSources((current) => ({
+      ...current,
+      dialogue: {
+        draft: "",
+        messages: [
+          ...current.dialogue.messages,
+          userMessage,
+          {
+            id: `msg_ai_${Date.now()}`,
+            role: "ai",
+            label: "AI",
+            text: "已加入当前创作上下文，右侧标签会重新整理。",
+          },
+        ],
+      },
+    }));
+    addEvent("我", "补充了一条创作对话");
+  }
+
+  async function handleAudioFile(file: File, target: "humming" | "voice", audioUrl: string) {
+    const fileInfo = {
+      fileName: file.name,
+      fileSize: formatBytes(file.size),
+      audioUrl,
+      uploadStatus: "上传到后端预处理",
+    };
+
+    updateSource(target, fileInfo);
+
+    try {
+      const result: UploadResponse = await uploadAudio(file);
+      updateSource(target, {
+        uploadId: result.uploadId,
+        uploadStatus: `已预处理为 ${result.normalizedFormat}`,
+      });
+      addEvent("我", `${target === "humming" ? "上传了哼唱" : "上传了语音"}：${result.filename}`);
+    } catch {
+      updateSource(target, {
+        uploadStatus: "上传失败，保留本地预览",
+      });
+    }
+  }
+
+  function handleAudioSelect(event: React.ChangeEvent<HTMLInputElement>, target: "humming" | "voice") {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    void handleAudioFile(file, target, URL.createObjectURL(file));
+    event.target.value = "";
+  }
+
+  function handleImageSelect(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    updateSource("image", {
+      fileName: file.name,
+      previewUrl: URL.createObjectURL(file),
+      uploadStatus: `${formatBytes(file.size)} · 本地预览`,
+    });
+    addEvent("我", `加入了一张视觉参考：${file.name}`);
+    event.target.value = "";
+  }
+
+  async function startRecording(target: "humming" | "voice") {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      updateSource(target, { uploadStatus: "当前浏览器不支持录音" });
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      chunksRef.current = [];
+      mediaRecorderRef.current = recorder;
+      setRecordingTarget(target);
+      updateSource(target, { uploadStatus: "录音中" });
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          chunksRef.current.push(event.data);
+        }
+      };
+
+      recorder.onstop = () => {
+        stream.getTracks().forEach((track) => track.stop());
+        const blob = new Blob(chunksRef.current, { type: recorder.mimeType || "audio/webm" });
+        const fileName = target === "humming" ? "humming-take.webm" : "voice-note.webm";
+        const file = new File([blob], fileName, { type: blob.type || "audio/webm" });
+        void handleAudioFile(file, target, URL.createObjectURL(blob));
+      };
+
+      recorder.start();
+    } catch {
+      updateSource(target, { uploadStatus: "没有麦克风权限" });
+      setRecordingTarget(null);
+    }
+  }
+
+  function stopRecording() {
+    mediaRecorderRef.current?.stop();
+    mediaRecorderRef.current = null;
+    setRecordingTarget(null);
   }
 
   async function handleCreateDemo() {
@@ -307,24 +681,142 @@ function CreatePage() {
     try {
       const task = await createDemoTask({
         projectId: activeProject.id,
-        prompt: draft,
+        prompt: activeContent.content,
         referenceBrief,
       });
 
-      setDemos((current) => [
-        {
-          title: `Demo ${current.length + 1}`,
-          meta: `任务 ${task.taskId} · ${task.status}`,
-          note: task.message,
-          status: "新任务",
-        },
-        ...current,
-      ]);
+      const demoId = `demo_${task.taskId}`;
+      const nextDemo: DemoVersion = {
+        id: demoId,
+        title: `Demo ${demos.length + 1}`,
+        meta: `任务 ${task.taskId} · ${activeSource.label}输入`,
+        note: task.message,
+        status: task.status === "queued" ? "排队中" : "生成中",
+        progress: task.progress ?? 12,
+        taskId: task.taskId,
+        audioUrl: task.audioUrl,
+      };
+
+      setDemos((current) => [nextDemo, ...current]);
+      setProjects((current) =>
+        current.map((project) =>
+          project.id === activeProject.id
+            ? { ...project, status: "Demo 任务已创建", progress: Math.min(96, project.progress + 8), updated: nowLabel() }
+            : project,
+        ),
+      );
       setAnalysisState("Demo 任务已创建");
+      addEvent("我", `创建了 ${nextDemo.title}`);
+      void pollDemoTask(task.taskId, demoId);
     } catch {
       setAnalysisState("Demo 任务创建失败");
     }
   }
+
+  async function pollDemoTask(taskId: string, demoId: string) {
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      await new Promise((resolve) => window.setTimeout(resolve, 1400));
+
+      try {
+        const task = await getDemoTask(taskId);
+        const statusLabel =
+          task.status === "succeeded"
+            ? "任务完成"
+            : task.status === "failed"
+              ? "生成失败"
+              : task.status === "running"
+                ? "生成中"
+                : "排队中";
+
+        setDemos((current) =>
+          current.map((demo) =>
+            demo.id === demoId
+              ? {
+                  ...demo,
+                  note: task.message,
+                  status: statusLabel,
+                  progress: task.progress ?? (task.status === "succeeded" ? 100 : Math.min(92, demo.progress + 18)),
+                  audioUrl: task.audioUrl ?? demo.audioUrl,
+                }
+              : demo,
+          ),
+        );
+
+        if (task.status === "succeeded" || task.status === "failed") {
+          addEvent("系统", `${taskId} ${statusLabel}`);
+          break;
+        }
+      } catch {
+        setDemos((current) =>
+          current.map((demo) => (demo.id === demoId ? { ...demo, status: "轮询失败", note: "后端任务状态暂时不可用。" } : demo)),
+        );
+        break;
+      }
+    }
+  }
+
+  function handleCreateProject() {
+    const id = `project_${Date.now()}`;
+    const nextProject: Project = {
+      id,
+      title: `未命名创作 ${projects.length + 1}`,
+      subtitle: "等待第一条灵感",
+      status: "新建协作空间",
+      progress: 6,
+      owner: "我",
+      updated: nowLabel(),
+    };
+
+    setProjects((current) => [nextProject, ...current]);
+    setActiveProjectId(id);
+    addEvent("我", "新建了一个创作空间");
+  }
+
+  async function handleCopyShareLink() {
+    const link = `${window.location.origin}/create?project=${encodeURIComponent(activeProject.id)}&permission=edit`;
+    try {
+      await navigator.clipboard.writeText(link);
+      setShareState("链接已复制");
+    } catch {
+      setShareState(link);
+    }
+
+    window.setTimeout(() => setShareState("复制协作链接"), 2200);
+  }
+
+  function handleCreateBranch(demo: DemoVersion) {
+    const id = `branch_${Date.now()}`;
+    const branchProject: Project = {
+      id,
+      title: `${demo.title} 修改分支`,
+      subtitle: "基于成品反馈继续创作",
+      status: "分支已创建",
+      progress: 18,
+      owner: "我",
+      updated: nowLabel(),
+    };
+    setProjects((current) => [branchProject, ...current]);
+    setActiveProjectId(id);
+    addEvent("我", `从 ${demo.title} 创建了修改分支`);
+  }
+
+  const visibleMessages =
+    activeMode === "dialogue"
+      ? sources.dialogue.messages.slice(-5)
+      : [
+          {
+            id: "mode_preview",
+            role: "user" as const,
+            label: activeSource.label,
+            text: activeContent.content || activeSource.placeholder,
+          },
+          {
+            id: "brief_preview",
+            role: "ai" as const,
+            label: "AI",
+            text: brief?.summary ?? "输入内容后，右侧会自动整理主题、情绪、场景和适用位置。",
+          },
+        ];
 
   return (
     <main className="create-shell" aria-label="开始创作">
@@ -333,7 +825,7 @@ function CreatePage() {
           <ArrowLeft size={19} />
         </a>
         <h1>创作工作台</h1>
-        <button className="icon-button" type="button" aria-label="分享创作空间">
+        <button className="icon-button" onClick={handleCopyShareLink} type="button" aria-label="分享创作空间">
           <Share2 size={18} />
         </button>
       </header>
@@ -345,7 +837,7 @@ function CreatePage() {
               <p>协作空间</p>
               <h2>创作历史</h2>
             </div>
-            <button className="tiny-button" type="button" aria-label="新建创作">
+            <button className="tiny-button" onClick={handleCreateProject} type="button" aria-label="新建创作">
               <Plus size={17} />
             </button>
           </div>
@@ -379,10 +871,20 @@ function CreatePage() {
             ))}
           </div>
 
-          <button className="share-link" type="button">
-            <Link2 size={16} />
-            复制协作链接
+          <button className="share-link" onClick={handleCopyShareLink} type="button">
+            {shareState === "复制协作链接" ? <Link2 size={16} /> : <Copy size={16} />}
+            {shareState}
           </button>
+
+          <div className="event-feed" aria-label="协作动态">
+            {events.map((event) => (
+              <article key={event.id}>
+                <span>{event.time}</span>
+                <strong>{event.actor}</strong>
+                <p>{event.action}</p>
+              </article>
+            ))}
+          </div>
         </aside>
 
         <section className="studio-main" aria-label="创作工作区">
@@ -393,26 +895,21 @@ function CreatePage() {
                 <h2>{activeProject.title}</h2>
               </div>
               <span className="status-pill">
-                <Bot size={14} />
+                {analysisState.includes("中") ? <Loader2 size={14} className="spin" /> : <Bot size={14} />}
                 {analysisState}
               </span>
             </div>
 
             <div className="chat-window" aria-label="创作对话">
-              <article className="chat-message user">
-                <span>{activeProject.subtitle}</span>
-                <p>{draft || activeSource.placeholder}</p>
-              </article>
-              <article className="chat-message ai">
-                <span>
-                  <Bot size={14} />
-                  DeepSeek Brief
-                </span>
-                <p>
-                  {brief?.summary ??
-                    "已保留原始灵感，并拆成歌词、旋律参考、情绪曲线和可执行编曲方向。输入后会实时更新右侧分析。"}
-                </p>
-              </article>
+              {visibleMessages.map((message) => (
+                <article className={`chat-message ${message.role}`} key={message.id}>
+                  <span>
+                    {message.role === "ai" ? <Bot size={14} /> : <UsersRound size={14} />}
+                    {message.label}
+                  </span>
+                  <p>{message.text}</p>
+                </article>
+              ))}
             </div>
 
             <div className="source-toolbar" aria-label="输入源">
@@ -434,23 +931,197 @@ function CreatePage() {
                 <Tags size={15} />
                 <span>{activeSource.hint}</span>
               </div>
-              <textarea
-                aria-label="输入灵感"
-                onChange={(event) => setDraft(event.target.value)}
-                placeholder={activeSource.placeholder}
-                value={draft}
-              />
+
+              {activeMode === "dialogue" && (
+                <div className="mode-form">
+                  <label className="field-label">
+                    <span>对话输入</span>
+                    <textarea
+                      aria-label="对话输入"
+                      onChange={(event) => updateSource("dialogue", { draft: event.target.value })}
+                      placeholder={activeSource.placeholder}
+                      value={sources.dialogue.draft}
+                    />
+                  </label>
+                  <div className="composer-actions">
+                    <button className="utility-button" onClick={handleSendDialogue} type="button">
+                      <MessageCircle size={16} />
+                      加入对话
+                    </button>
+                    <button className="send-button" onClick={() => void runAnalysis("manual")} type="button">
+                      <Send size={16} />
+                      分析当前对话
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {activeMode === "text" && (
+                <div className="mode-form">
+                  <div className="field-grid">
+                    <label className="field-label">
+                      <span>灵感标题</span>
+                      <input
+                        aria-label="歌词标题"
+                        onChange={(event) => updateSource("text", { title: event.target.value })}
+                        value={sources.text.title}
+                      />
+                    </label>
+                    <label className="field-label">
+                      <span>适用段落</span>
+                      <select
+                        aria-label="适用段落"
+                        onChange={(event) => updateSource("text", { section: event.target.value as SourceData["text"]["section"] })}
+                        value={sources.text.section}
+                      >
+                        <option>主歌</option>
+                        <option>副歌 Hook</option>
+                        <option>Bridge</option>
+                      </select>
+                    </label>
+                  </div>
+                  <label className="field-label">
+                    <span>歌词 / 故事文本</span>
+                    <textarea
+                      aria-label="文字输入"
+                      onChange={(event) => updateSource("text", { body: event.target.value })}
+                      placeholder={activeSource.placeholder}
+                      value={sources.text.body}
+                    />
+                  </label>
+                  <div className="option-row">
+                    <label>
+                      <input
+                        checked={sources.text.preserveOriginal}
+                        onChange={(event) => updateSource("text", { preserveOriginal: event.target.checked })}
+                        type="checkbox"
+                      />
+                      必须保留原文
+                    </label>
+                    <label>
+                      <input
+                        checked={sources.text.allowExpand}
+                        onChange={(event) => updateSource("text", { allowExpand: event.target.checked })}
+                        type="checkbox"
+                      />
+                      允许 AI 扩写
+                    </label>
+                  </div>
+                </div>
+              )}
+
+              {activeMode === "humming" && (
+                <div className="mode-form">
+                  <div className="media-actions">
+                    <button
+                      className="utility-button"
+                      onClick={() => (recordingTarget === "humming" ? stopRecording() : void startRecording("humming"))}
+                      type="button"
+                    >
+                      {recordingTarget === "humming" ? <Square size={16} /> : <Mic size={16} />}
+                      {recordingTarget === "humming" ? "停止录音" : "录一段哼唱"}
+                    </button>
+                    <label className="upload-button">
+                      <Upload size={16} />
+                      上传音频
+                      <input accept="audio/*,.mp3,.m4a,.wav,.webm" onChange={(event) => handleAudioSelect(event, "humming")} type="file" />
+                    </label>
+                  </div>
+                  {sources.humming.audioUrl && <audio controls src={sources.humming.audioUrl} />}
+                  <span className="upload-status">{sources.humming.uploadStatus}</span>
+                  <label className="field-label">
+                    <span>旋律说明</span>
+                    <textarea
+                      aria-label="哼唱说明"
+                      onChange={(event) => updateSource("humming", { note: event.target.value })}
+                      placeholder={activeSource.placeholder}
+                      value={sources.humming.note}
+                    />
+                  </label>
+                </div>
+              )}
+
+              {activeMode === "image" && (
+                <div className="mode-form">
+                  <label className="upload-drop">
+                    {sources.image.previewUrl ? (
+                      <img alt="图片灵感预览" src={sources.image.previewUrl} />
+                    ) : (
+                      <span>
+                        <ImagePlus size={22} />
+                        选择图片
+                      </span>
+                    )}
+                    <input accept="image/*" onChange={handleImageSelect} type="file" />
+                  </label>
+                  <span className="upload-status">{sources.image.fileName || sources.image.uploadStatus}</span>
+                  <div className="field-grid">
+                    <label className="field-label">
+                      <span>视觉情绪</span>
+                      <input
+                        aria-label="视觉情绪"
+                        onChange={(event) => updateSource("image", { mood: event.target.value })}
+                        value={sources.image.mood}
+                      />
+                    </label>
+                    <label className="field-label">
+                      <span>处理方式</span>
+                      <input aria-label="图片处理方式" readOnly value="只提取场景与意象" />
+                    </label>
+                  </div>
+                  <label className="field-label">
+                    <span>画面说明</span>
+                    <textarea
+                      aria-label="图片说明"
+                      onChange={(event) => updateSource("image", { note: event.target.value })}
+                      placeholder={activeSource.placeholder}
+                      value={sources.image.note}
+                    />
+                  </label>
+                </div>
+              )}
+
+              {activeMode === "voice" && (
+                <div className="mode-form">
+                  <div className="media-actions">
+                    <button
+                      className="utility-button"
+                      onClick={() => (recordingTarget === "voice" ? stopRecording() : void startRecording("voice"))}
+                      type="button"
+                    >
+                      {recordingTarget === "voice" ? <Pause size={16} /> : <Radio size={16} />}
+                      {recordingTarget === "voice" ? "结束口述" : "录口述反馈"}
+                    </button>
+                    <label className="upload-button">
+                      <Upload size={16} />
+                      上传语音
+                      <input accept="audio/*,.mp3,.m4a,.wav,.webm" onChange={(event) => handleAudioSelect(event, "voice")} type="file" />
+                    </label>
+                  </div>
+                  {sources.voice.audioUrl && <audio controls src={sources.voice.audioUrl} />}
+                  <span className="upload-status">{sources.voice.uploadStatus}</span>
+                  <label className="field-label">
+                    <span>转写 / 反馈摘要</span>
+                    <textarea
+                      aria-label="语音转写"
+                      onChange={(event) => updateSource("voice", { transcript: event.target.value })}
+                      value={sources.voice.transcript}
+                    />
+                  </label>
+                  <label className="field-label">
+                    <span>希望 AI 怎么处理</span>
+                    <textarea aria-label="语音处理要求" onChange={(event) => updateSource("voice", { note: event.target.value })} value={sources.voice.note} />
+                  </label>
+                </div>
+              )}
+
               <div className="composer-actions">
-                <button className="utility-button" type="button">
-                  <Paperclip size={16} />
-                  上传素材
-                </button>
                 <button className="utility-button" onClick={handleCreateDemo} type="button">
                   <Headphones size={16} />
                   创建 Demo 任务
                 </button>
-                <button className="send-button" onClick={handleAnalyze} type="button">
-                  <Send size={16} />
+                <button className="send-button" onClick={() => void runAnalysis("manual")} type="button">
+                  <Wand2 size={16} />
                   发送给 AI 分析
                 </button>
               </div>
@@ -479,6 +1150,15 @@ function CreatePage() {
                   <p>{item.detail}</p>
                 </article>
               ))}
+            </div>
+
+            <div className="brief-card" aria-label="当前 Brief">
+              <span>
+                <FileText size={14} />
+                当前 Brief
+              </span>
+              <strong>{brief?.title ?? activeProject.title}</strong>
+              <p>{brief?.suggestedStyle ?? "等待 AI 根据当前输入生成曲风、速度、乐器和歌词建议。"}</p>
             </div>
 
             <div className="flow-panel" aria-label="数据流">
@@ -518,8 +1198,13 @@ function CreatePage() {
 
             <div className="demo-list">
               {demos.map((demo) => (
-                <article className="demo-item" key={`${demo.title}-${demo.meta}`}>
-                  <button className="play-button" type="button" aria-label={`播放 ${demo.title}`}>
+                <article className="demo-item" key={demo.id}>
+                  <button
+                    className="play-button"
+                    onClick={() => !demo.audioUrl && setAnalysisState("当前 Demo 还没有可播放音频")}
+                    type="button"
+                    aria-label={`播放 ${demo.title}`}
+                  >
                     <Play size={18} />
                   </button>
                   <div>
@@ -529,9 +1214,13 @@ function CreatePage() {
                     </span>
                     <h3>{demo.title}</h3>
                     <p>{demo.meta}</p>
+                    <span className="progress-track demo-progress" aria-label={`${demo.title}进度 ${demo.progress}%`}>
+                      <span style={{ width: `${demo.progress}%` }} />
+                    </span>
                     <em>{demo.note}</em>
+                    {demo.audioUrl ? <audio controls src={demo.audioUrl} /> : <small>未连接音乐模型时不会生成真实音频。</small>}
                   </div>
-                  <button className="branch-button" type="button">
+                  <button className="branch-button" onClick={() => handleCreateBranch(demo)} type="button">
                     <GitBranch size={15} />
                     新分支
                   </button>

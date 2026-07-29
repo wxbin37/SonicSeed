@@ -13,7 +13,10 @@ SUPPORTED_AUDIO_TYPES = {
     "audio/mp3",
     "audio/mp4",
     "audio/m4a",
+    "audio/x-m4a",
     "audio/wav",
+    "audio/wave",
+    "audio/x-wav",
     "audio/webm",
 }
 
@@ -25,7 +28,7 @@ app = FastAPI(
 
 cors_origins = [
     origin.strip()
-    for origin in os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:8888").split(",")
+    for origin in os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:3010,http://localhost:8888").split(",")
     if origin.strip()
 ]
 

@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field
 
 
 InputMode = Literal["dialogue", "text", "humming", "image", "voice"]
+AttachmentType = Literal["audio", "image", "note"]
 
 
 class AnalysisTag(BaseModel):
@@ -12,10 +13,17 @@ class AnalysisTag(BaseModel):
     detail: str
 
 
+class BriefAttachment(BaseModel):
+    type: AttachmentType
+    name: str = Field(min_length=1, max_length=240)
+    uploadId: str | None = Field(default=None, max_length=120)
+
+
 class BriefRequest(BaseModel):
     projectId: str = Field(min_length=1, max_length=120)
     mode: InputMode
     content: str = Field(default="", max_length=4000)
+    attachments: list[BriefAttachment] = Field(default_factory=list, max_length=12)
 
 
 class BriefResponse(BaseModel):
@@ -55,6 +63,8 @@ class DemoTaskResponse(BaseModel):
     taskId: str
     status: Literal["queued", "running", "succeeded", "failed"]
     message: str
+    progress: int | None = Field(default=None, ge=0, le=100)
+    audioUrl: str | None = None
 
 
 class HealthResponse(BaseModel):

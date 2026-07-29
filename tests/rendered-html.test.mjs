@@ -18,7 +18,15 @@ test("front-end defines the requested product routes", async () => {
   assert.match(app, /工作台/);
   assert.match(app, /AI 分析后台/);
   assert.match(app, /Demo 成品区/);
+  assert.match(app, /MediaRecorder/);
+  assert.match(app, /handleAudioSelect/);
+  assert.match(app, /handleImageSelect/);
+  assert.match(app, /handleSendDialogue/);
+  assert.match(app, /handleCreateDemo/);
+  assert.match(app, /pollDemoTask/);
   assert.match(api, /VITE_API_BASE_URL/);
+  assert.match(api, /uploadAudio/);
+  assert.match(api, /getDemoTask/);
 });
 
 test("back-end exposes the split deployment API contract", async () => {
@@ -36,6 +44,7 @@ test("back-end exposes the split deployment API contract", async () => {
   assert.match(main, /@app\.post\("\/api\/demo-tasks"/);
   assert.match(main, /@app\.get\("\/api\/demo-tasks\/\{task_id\}"/);
   assert.match(schemas, /class BriefRequest/);
+  assert.match(schemas, /class BriefAttachment/);
   assert.match(schemas, /class DemoTaskResponse/);
   assert.match(requirements, /fastapi/);
   assert.match(requirements, /uvicorn/);

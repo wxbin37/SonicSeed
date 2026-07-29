@@ -51,7 +51,9 @@ body {
 
 button,
 a,
-textarea {
+textarea,
+input,
+select {
   font: inherit;
 }
 
@@ -66,7 +68,9 @@ button {
 
 button:focus-visible,
 a:focus-visible,
-textarea:focus-visible {
+textarea:focus-visible,
+input:focus-visible,
+select:focus-visible {
   outline: 2px solid var(--button-highlight);
   outline-offset: 3px;
 }
@@ -363,9 +367,38 @@ h3 {
   font-weight: 600;
 }
 
+.event-feed {
+  display: grid;
+  gap: var(--space-200);
+  margin-top: var(--space-400);
+}
+
+.event-feed article {
+  display: grid;
+  gap: var(--space-100);
+  padding: var(--space-300);
+  border: 1px solid var(--divider);
+  border-radius: var(--corner-s);
+  background: var(--mask-strong);
+}
+
+.event-feed span,
+.event-feed p,
+.upload-status,
+.demo-item small {
+  color: var(--text-300);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.event-feed strong {
+  font-size: 13px;
+  line-height: 17px;
+}
+
 .workbench-panel {
   display: flex;
-  min-height: 540px;
+  min-height: 680px;
   flex-direction: column;
 }
 
@@ -390,11 +423,12 @@ h3 {
   flex: 1;
   gap: var(--space-300);
   min-height: 220px;
+  max-height: 360px;
   padding: var(--space-300);
   border: 1px solid var(--divider);
   border-radius: var(--corner-default);
   background: var(--mask-strong);
-  overflow: hidden;
+  overflow-y: auto;
 }
 
 .chat-message {
@@ -479,19 +513,137 @@ h3 {
   color: var(--text-400);
 }
 
-.composer-box textarea {
+.mode-form {
+  display: grid;
+  gap: var(--space-300);
+}
+
+.field-grid {
+  display: grid;
+  gap: var(--space-300);
+}
+
+.field-label {
+  display: grid;
+  gap: var(--space-200);
+}
+
+.field-label span {
+  color: var(--text-400);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+}
+
+.composer-box textarea,
+.composer-box input:not([type="checkbox"]),
+.composer-box select {
   width: 100%;
-  min-height: 88px;
-  border: 0;
-  background: transparent;
+  border: 1px solid var(--divider);
+  border-radius: var(--corner-s);
+  background: var(--background);
   color: var(--text-500);
-  resize: vertical;
   font-size: 14px;
   line-height: 20px;
 }
 
+.composer-box textarea {
+  min-height: 96px;
+  padding: var(--space-300);
+  resize: vertical;
+}
+
+.composer-box input:not([type="checkbox"]),
+.composer-box select {
+  min-height: 44px;
+  padding: 0 var(--space-300);
+}
+
 .composer-box textarea::placeholder {
   color: var(--text-300);
+}
+
+.option-row,
+.media-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-300);
+}
+
+.option-row label {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  gap: var(--space-200);
+  color: var(--text-400);
+  font-size: 13px;
+  line-height: 17px;
+  font-weight: 600;
+}
+
+.upload-button {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-200);
+  border-radius: var(--corner-round);
+  padding: 0 var(--space-400);
+  background: var(--button-mask);
+  color: var(--text-400);
+  font-size: 13px;
+  line-height: 17px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.upload-button input,
+.upload-drop input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.upload-drop {
+  position: relative;
+  display: grid;
+  min-height: 180px;
+  place-items: center;
+  overflow: hidden;
+  border: 1px dashed rgba(255, 255, 255, 0.18);
+  border-radius: var(--corner-default);
+  background: var(--background);
+  color: var(--text-400);
+  cursor: pointer;
+}
+
+.upload-drop span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-200);
+  font-size: 13px;
+  line-height: 17px;
+  font-weight: 600;
+}
+
+.upload-drop img {
+  width: 100%;
+  height: 100%;
+  max-height: 280px;
+  object-fit: cover;
+}
+
+.mode-form audio,
+.demo-item audio {
+  width: 100%;
+}
+
+.upload-status {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
 }
 
 .composer-actions {
@@ -542,6 +694,7 @@ h3 {
 
 .analysis-item,
 .flow-panel,
+.brief-card,
 .stack-grid div,
 .demo-item {
   border: 1px solid var(--divider);
@@ -553,6 +706,33 @@ h3 {
   display: grid;
   gap: var(--space-100);
   padding: var(--space-300);
+}
+
+.brief-card {
+  display: grid;
+  gap: var(--space-200);
+  padding: var(--space-300);
+}
+
+.brief-card span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-100);
+  color: var(--button-highlight);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+}
+
+.brief-card strong {
+  font-size: 15px;
+  line-height: 20px;
+}
+
+.brief-card p {
+  color: var(--text-400);
+  font-size: 12px;
+  line-height: 16px;
 }
 
 .analysis-item span {
@@ -660,10 +840,23 @@ h3 {
   margin-top: var(--space-100);
 }
 
+.demo-progress {
+  margin-top: var(--space-200);
+}
+
+.demo-item small {
+  display: block;
+  margin-top: var(--space-200);
+}
+
 .branch-button {
   grid-column: 2;
   justify-self: start;
   margin-top: var(--space-100);
+}
+
+.spin {
+  animation: spin 1s linear infinite;
 }
 
 .library-hero {
@@ -742,7 +935,17 @@ h3 {
   }
 }
 
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 @media (min-width: 700px) {
+  .field-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .library-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -777,11 +980,11 @@ h3 {
   }
 
   .workbench-panel {
-    min-height: 620px;
+    min-height: 720px;
   }
 
   .analysis-panel {
-    max-height: 620px;
+    max-height: 720px;
     overflow: auto;
   }
 
@@ -839,7 +1042,7 @@ h3 {
   }
 
   .workbench-panel {
-    min-height: 520px;
+    min-height: 620px;
   }
 
   .chat-message {
@@ -851,6 +1054,7 @@ h3 {
   }
 
   .utility-button,
+  .upload-button,
   .send-button,
   .branch-button {
     width: 100%;
