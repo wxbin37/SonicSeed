@@ -1,17 +1,27 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import type { LucideIcon } from "lucide-react";
 import {
   ArrowLeft,
   Bot,
-  ChevronDown,
   Check,
+  ChevronDown,
   Copy,
+  Ellipsis,
   FileAudio,
+  FolderPlus,
   Heart,
   Headphones,
   Image as ImageIcon,
   Library,
+  LayoutGrid,
   Link2,
+  List,
   ListMusic,
+  MessageCircle,
+  Music2,
+  Network,
+  Radio,
+  Search,
   Loader2,
   PanelLeftClose,
   PanelLeftOpen,
@@ -23,6 +33,7 @@ import {
   Server,
   Share2,
   SlidersHorizontal,
+  Sparkles,
   Tags,
   Type,
   UsersRound,
@@ -51,6 +62,7 @@ import {
   type AnalysisTag,
   type BriefAttachment,
   type BriefResponse,
+  type InspirationRecord,
   type CollaborationSession,
   type DemoTaskResponse,
   type InspirationCard,
@@ -88,6 +100,38 @@ type DemoVersion = {
   audioUrl?: string;
   lyrics?: string;
 };
+
+type InspirationKind = "歌词句" | "哼唱" | "旋律" | "故事" | "图片" | "环境声音" | "创作反馈" | "Demo";
+
+type Inspiration = {
+  id: string;
+  kind: InspirationKind;
+  title: string;
+  excerpt: string;
+  tags: string[];
+  theme?: string;
+  emotion?: string;
+  scene?: string;
+  genre?: string;
+  status?: "待发展" | "已关联" | "已用于 Demo";
+  project?: string;
+  relations: number;
+  updatedDays: number;
+  duration?: string;
+  mediaLabel?: string;
+  coreImagery?: string;
+  melodyFeatures?: string;
+  creationPosition?: string;
+  usage?: string;
+  originalContent?: string;
+  originalDialogue?: string[];
+  dialogueSummary?: string;
+  relationSuggestion?: string;
+  icon: LucideIcon;
+};
+
+type LibraryView = "navigation" | "graph";
+type LibraryLayout = "grid" | "list";
 
 type CollaborationEvent = {
   id: string;
@@ -215,6 +259,191 @@ function formatBytes(size: number) {
 
   return `${(size / 1024 / 1024).toFixed(1)} MB`;
 }
+
+const inspirations: Inspiration[] = [
+  {
+    id: "morning-hook",
+    kind: "哼唱",
+    title: "清晨副歌哼唱 01",
+    excerpt: "一段向上抬升后突然留白的副歌旋律，第二遍可以增加高音爆发。",
+    tags: ["哼唱", "短句 Hook", "中慢速", "副歌"],
+    theme: "重逢",
+    emotion: "释然",
+    scene: "清晨",
+    genre: "流行",
+    status: "待发展",
+    project: "离开城市之前",
+    relations: 3,
+    updatedDays: 0,
+    duration: "0:32",
+    coreImagery: "晨光、空车厢、逐渐远去的站台",
+    melodyFeatures: "上行短句 Hook、高音爆发、节奏记忆点",
+    creationPosition: "副歌 / 高潮",
+    usage: "核心素材、保留旋律",
+    originalContent: "一段 32 秒的清唱录音，第二遍旋律比第一遍高一个发展层级。",
+    originalDialogue: ["我想先记下这个副歌，像是忍了很久之后终于说出口。", "已保留原始录音，建议将第二遍上行旋律作为副歌高潮。"],
+    relationSuggestion: "适合与「把告别说得像明天还会见」组合成副歌。",
+    icon: Music2,
+  },
+  {
+    id: "tomorrow-line",
+    kind: "歌词句",
+    title: "把告别说得像明天还会见",
+    excerpt: "我们把告别说得像明天还会见。",
+    tags: ["歌词句", "告别", "克制", "Hook"],
+    theme: "告别",
+    emotion: "克制",
+    scene: "车站",
+    genre: "流行",
+    status: "已关联",
+    project: "离开城市之前",
+    relations: 4,
+    updatedDays: 1,
+    coreImagery: "车票、站台、没有说出口的再见",
+    creationPosition: "副歌 Hook / 主歌结尾",
+    usage: "核心素材、保留原文、允许扩写",
+    originalContent: "我们把告别说得像明天还会见。",
+    originalDialogue: ["这句话先不要润色，我想保留那种故作轻松的感觉。", "原句已锁定，可围绕“明天还会见”扩写前后两句。"],
+    dialogueSummary: "创作者希望保留原句故作轻松的告别感，不做润色，并围绕“明天还会见”扩写副歌前后两句。",
+    relationSuggestion: "和「清晨副歌哼唱 01」主题一致，可作为旋律落点。",
+    icon: Type,
+  },
+  {
+    id: "taxi-window",
+    kind: "图片",
+    title: "出租车窗上的雨",
+    excerpt: "霓虹在车窗水痕里断开，远处是最后一次路过的街口。",
+    tags: ["图片", "雨夜", "霓虹灯", "孤独"],
+    theme: "告别",
+    emotion: "孤独",
+    scene: "雨夜",
+    genre: "电子",
+    status: "已关联",
+    project: "雨夜出租车 Demo",
+    relations: 3,
+    updatedDays: 2,
+    coreImagery: "雨、霓虹灯、车窗倒影、空街",
+    creationPosition: "视觉参考 / Intro",
+    usage: "参考素材、提取情绪",
+    originalContent: "一张雨夜车窗照片，画面主体是被水痕切开的绿色霓虹。",
+    relationSuggestion: "可与站台环境声共同建立城市夜晚的开场氛围。",
+    icon: ImageIcon,
+  },
+  {
+    id: "station-ambience",
+    kind: "环境声音",
+    title: "末班车站台广播",
+    excerpt: "列车进站前的风噪、提示音和一段模糊的人声广播。",
+    tags: ["环境声音", "车站", "开场", "参考素材"],
+    theme: "离开",
+    emotion: "遗憾",
+    scene: "车站",
+    genre: "民谣",
+    status: "待发展",
+    project: "站台采样 Intro",
+    relations: 2,
+    updatedDays: 5,
+    duration: "0:47",
+    coreImagery: "末班车、提示灯、空站台",
+    melodyFeatures: "广播提示音形成三音节动机，风噪可作节奏底纹",
+    creationPosition: "开场 / 过渡",
+    usage: "参考素材、提取环境声",
+    originalContent: "47 秒现场录音，包含列车进站风噪、提示音和一段模糊广播。",
+    relationSuggestion: "建议清理低频后加入 Demo V1 的前八小节。",
+    icon: Radio,
+  },
+  {
+    id: "last-goodnight",
+    kind: "歌词句",
+    title: "最后一句晚安",
+    excerpt: "把所有的遗憾留给最后一句晚安。",
+    tags: ["歌词句", "遗憾", "深夜", "收束"],
+    theme: "告别",
+    emotion: "遗憾",
+    scene: "卧室",
+    genre: "R&B",
+    status: "待发展",
+    project: "凌晨副歌接力",
+    relations: 2,
+    updatedDays: 8,
+    coreImagery: "床头灯、未发送的消息、凌晨时钟",
+    creationPosition: "收束 / 尾句",
+    usage: "保留原文、参考素材",
+    originalContent: "把所有的遗憾留给最后一句晚安。",
+    originalDialogue: ["想把它放在最后一句，唱完以后伴奏直接停掉。"],
+    dialogueSummary: "这条灵感来自结尾设计讨论：最后一句唱完后让伴奏直接停止，用突然的安静放大遗憾。",
+    relationSuggestion: "与告别主题素材高度相似，可作为第二版结尾分支。",
+    icon: Type,
+  },
+  {
+    id: "leave-story",
+    kind: "故事",
+    title: "离开城市的那天",
+    excerpt: "地铁口的风很大，我们各自往不同方向走，谁也没有回头。",
+    tags: ["故事", "城市", "离开", "回忆"],
+    theme: "告别",
+    emotion: "克制",
+    scene: "街道",
+    genre: "民谣",
+    status: "已关联",
+    project: "离开城市之前",
+    relations: 4,
+    updatedDays: 12,
+    coreImagery: "地铁口、逆向人群、被风吹动的衣角",
+    creationPosition: "主歌叙事 / 转折",
+    usage: "提取情绪、允许扩写",
+    originalContent: "离开那天，地铁口的风很大。我们各自往不同的方向走去，谁也没有回头。",
+    originalDialogue: ["这是一个真实片段，但不用写得太具体。", "可以保留地铁口和逆向行走两个动作，弱化人物身份。"],
+    dialogueSummary: "灵感来自一段真实离别经历。创作时保留地铁口、风和两个人逆向行走的动作，同时弱化人物身份与具体背景。",
+    relationSuggestion: "可补足「把告别说得像明天还会见」之前的主歌叙事。",
+    icon: MessageCircle,
+  },
+  {
+    id: "demo-v1",
+    kind: "Demo",
+    title: "离开城市之前 V1",
+    excerpt: "钢琴与电子氛围的第一版编曲，副歌鼓组需要继续收敛。",
+    tags: ["Demo", "都市流行", "保留原文", "过渡"],
+    theme: "告别",
+    emotion: "释放",
+    scene: "城市夜晚",
+    genre: "流行",
+    status: "已用于 Demo",
+    project: "离开城市之前",
+    relations: 5,
+    updatedDays: 15,
+    duration: "1:12",
+    coreImagery: "城市远景、车流、逐渐熄灭的灯",
+    melodyFeatures: "76 BPM、A 小调、副歌长线条、段末留白",
+    creationPosition: "完整 Demo",
+    usage: "版本基底、保留旋律、继续演化",
+    originalContent: "钢琴与电子氛围编曲，主歌保持近距离人声，副歌加入宽阔铺底。",
+    relationSuggestion: "已融合 5 条灵感，下一版建议吸收副歌留白反馈。",
+    icon: Play,
+  },
+  {
+    id: "hook-feedback",
+    kind: "创作反馈",
+    title: "副歌需要留出呼吸",
+    excerpt: "第二句以后不要立刻铺满，让主唱的尾音和环境声多停留两拍。",
+    tags: ["创作反馈", "副歌", "留白", "参考素材"],
+    theme: "成长",
+    emotion: "热烈",
+    scene: "舞台",
+    genre: "摇滚",
+    status: "已用于 Demo",
+    project: "凌晨副歌接力",
+    relations: 2,
+    updatedDays: 24,
+    creationPosition: "副歌 / 过渡",
+    usage: "创作约束、版本修改",
+    originalContent: "第二句以后不要立刻铺满，让主唱的尾音和环境声多停留两拍。",
+    originalDialogue: ["现在副歌太满了，听不到歌词最后几个字。", "建议第二句尾部减少鼓组和铺底，让人声尾音多停留两拍。"],
+    dialogueSummary: "试听 Demo 后发现副歌编曲过满，歌词尾字不清楚，因此建议第二句后减少鼓组和铺底，给人声尾音留出两拍空间。",
+    relationSuggestion: "适用于「离开城市之前 V1」的下一条版本分支。",
+    icon: MessageCircle,
+  },
+];
 
 function nowLabel() {
   return "刚刚";
@@ -490,6 +719,125 @@ function readWorkbenchString(workbench: Record<string, unknown>, key: keyof Work
   return typeof value === "string" ? value : null;
 }
 
+const LIBRARY_CACHE_KEY = "sonic-seed.library";
+const PROJECT_CACHE_KEY = "sonic-seed.projects";
+
+function readCachedRecords<T>(key: string): T[] {
+  try {
+    const raw = window.localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as T[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeCachedRecords<T>(key: string, records: T[]) {
+  try {
+    window.localStorage.setItem(key, JSON.stringify(records));
+  } catch {
+    // The live API remains authoritative when browser storage is unavailable.
+  }
+}
+
+function getTagValue(record: InspirationRecord, label: AnalysisTag["label"]) {
+  return record.tags.find((tag) => tag.label === label)?.value;
+}
+
+function inferInspirationKind(record: InspirationRecord): InspirationKind {
+  const attachmentTypes = new Set(record.attachments.map((attachment) => attachment.type));
+  const searchable = `${record.title} ${record.content}`;
+
+  if (attachmentTypes.has("image") || attachmentTypes.has("video")) return "图片";
+  if (attachmentTypes.has("audio")) {
+    return /环境|采样|广播|风噪|现场/.test(searchable) ? "环境声音" : "哼唱";
+  }
+  if (/反馈|修改|调整|建议/.test(searchable)) return "创作反馈";
+  if (/故事|那天|回忆|经历/.test(searchable) || record.content.length > 90) return "故事";
+  return "歌词句";
+}
+
+function iconForInspirationKind(kind: InspirationKind): LucideIcon {
+  if (kind === "图片") return ImageIcon;
+  if (kind === "哼唱" || kind === "旋律") return Music2;
+  if (kind === "环境声音") return Radio;
+  if (kind === "Demo") return Play;
+  if (kind === "歌词句") return Type;
+  return MessageCircle;
+}
+
+function daysSince(createdAt: string) {
+  const timestamp = Date.parse(createdAt);
+  if (Number.isNaN(timestamp)) return 0;
+  return Math.max(0, Math.floor((Date.now() - timestamp) / 86_400_000));
+}
+
+function mapInspirationRecord(record: InspirationRecord, projectTitles: Map<string, string>): Inspiration {
+  const kind = inferInspirationKind(record);
+  const primaryAttachment = record.attachments[0];
+  const tagValues = record.tags.map((tag) => tag.value).filter(Boolean);
+  const content = record.content.trim();
+
+  return {
+    id: record.id,
+    kind,
+    title: record.title,
+    excerpt: content || (primaryAttachment ? `附件素材：${primaryAttachment.name}` : "尚未补充文字概况"),
+    tags: Array.from(new Set([kind, ...tagValues])),
+    theme: getTagValue(record, "主题"),
+    emotion: getTagValue(record, "情绪"),
+    scene: getTagValue(record, "场景"),
+    creationPosition: getTagValue(record, "适用位置"),
+    usage:
+      kind === "图片"
+        ? "参考素材、提取情绪"
+        : kind === "哼唱" || kind === "环境声音"
+          ? "保留原始音频、参考素材"
+          : "保留原文、允许扩写",
+    status: record.projectId === "inbox" ? "待发展" : "已关联",
+    project: projectTitles.get(record.projectId) ?? record.projectId,
+    relations: 0,
+    updatedDays: daysSince(record.createdAt),
+    mediaLabel: kind === "哼唱" || kind === "环境声音" ? primaryAttachment?.name : undefined,
+    originalContent: content || undefined,
+    dialogueSummary: primaryAttachment ? undefined : content || undefined,
+    icon: iconForInspirationKind(kind),
+  };
+}
+
+function relationScore(left: Inspiration, right: Inspiration) {
+  const sharedTags = left.tags.filter((tag) => right.tags.includes(tag)).length;
+  const sameProject = Boolean(left.project && left.project === right.project);
+  return sharedTags + (sameProject ? 2 : 0);
+}
+
+function addRelationCounts(items: Inspiration[]) {
+  return items.map((item) => ({
+    ...item,
+    relations: items.filter((candidate) => candidate.id !== item.id && relationScore(item, candidate) > 0).length,
+  }));
+}
+
+function initialLibraryInspirations() {
+  const cachedRecords = readCachedRecords<InspirationRecord>(LIBRARY_CACHE_KEY);
+  if (!cachedRecords.length) return inspirations;
+
+  const cachedProjects = readCachedRecords<ProjectRecord>(PROJECT_CACHE_KEY);
+  const projectTitles = new Map(cachedProjects.map((project) => [project.id, project.title]));
+  return addRelationCounts(cachedRecords.map((record) => mapInspirationRecord(record, projectTitles)));
+}
+
+const graphLinks = [
+  ["tomorrow-line", "morning-hook"],
+  ["tomorrow-line", "taxi-window"],
+  ["tomorrow-line", "last-goodnight"],
+  ["tomorrow-line", "leave-story"],
+  ["morning-hook", "demo-v1"],
+  ["taxi-window", "demo-v1"],
+  ["station-ambience", "demo-v1"],
+  ["leave-story", "station-ambience"],
+  ["demo-v1", "hook-feedback"],
+] as const;
+
 function HomePage() {
   return (
     <main className="home-shell" aria-label="声因入口">
@@ -511,6 +859,21 @@ function HomePage() {
 }
 
 function CreatePage() {
+  const selectedInspirationIds = useMemo(
+    () =>
+      new URLSearchParams(window.location.search)
+      .get("inspirations")
+      ?.split(",")
+      .filter(Boolean) ?? [],
+    [],
+  );
+  const cachedSelectedInspirations = useMemo(
+    () =>
+      readStorage<InspirationCard[]>(STORAGE_KEYS.library, []).filter((inspiration) =>
+        selectedInspirationIds.includes(inspiration.id),
+      ),
+    [selectedInspirationIds],
+  );
   const clientId = useMemo(getOrCreateClientId, []);
   const shareToken = useMemo(getShareToken, []);
   const [projects, setProjects] = useState<Project[]>(() => (hasApiConnection() ? [] : readStorage<Project[]>(STORAGE_KEYS.projects, [])));
@@ -519,7 +882,12 @@ function CreatePage() {
   );
   const [historyCollapsed, setHistoryCollapsed] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
-  const [draft, setDraft] = useState("");
+  const [selectedInspirations, setSelectedInspirations] = useState<InspirationCard[]>(cachedSelectedInspirations);
+  const [draft, setDraft] = useState(() =>
+    cachedSelectedInspirations.length
+      ? `请融合这些灵感继续创作：${cachedSelectedInspirations.map((item) => item.title).join("、")}。`
+      : "",
+  );
   const [attachments, setAttachments] = useState<LocalAttachment[]>([]);
   const [analysisTags, setAnalysisTags] = useState<AnalysisTag[]>(initialTags);
   const [brief, setBrief] = useState<BriefResponse | null>(null);
@@ -857,6 +1225,7 @@ function CreatePage() {
 
         const remoteVersions = remoteTasks.map(versionFromTask);
         setLibraryCount(remoteCards.length);
+        setSelectedInspirations(remoteCards.filter((card) => selectedInspirationIds.includes(card.id)));
         setLibraryCards(remoteCards);
         setVersions(remoteVersions);
         setActiveVersionId((current) => current || (remoteVersions[0]?.id ?? ""));
@@ -869,7 +1238,7 @@ function CreatePage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [selectedInspirationIds]);
 
   useEffect(() => {
     if (!canSubmit) {
@@ -1824,6 +2193,20 @@ function CreatePage() {
               </div>
             </div>
 
+            {selectedInspirations.length > 0 && (
+              <section className="selected-context" aria-label="已带入的灵感">
+                <span>
+                  <Sparkles size={15} />
+                  已带入 {selectedInspirations.length} 条灵感
+                </span>
+                <div>
+                  {selectedInspirations.map((item) => (
+                    <span key={item.id}>{item.title}</span>
+                  ))}
+                </div>
+              </section>
+            )}
+
             <div className="workbench-body">
               <div className="conversation-area">
                 <div className="chat-window" aria-label="创作对话">
@@ -2163,86 +2546,653 @@ function CreatePage() {
   );
 }
 
-function LibraryPage() {
-  const [cards, setCards] = useState<InspirationCard[]>(() => (hasApiConnection() ? [] : readStorage<InspirationCard[]>(STORAGE_KEYS.library, [])));
+const filterGroups = [
+  { id: "theme", label: "主题", options: ["全部主题", "告别", "成长", "重逢", "离开"] },
+  { id: "emotion", label: "情绪", options: ["全部情绪", "克制", "遗憾", "释然", "孤独", "释放", "热烈"] },
+  { id: "scene", label: "场景", options: ["全部场景", "雨夜", "车站", "卧室", "街道", "舞台", "清晨"] },
+  { id: "genre", label: "曲风", options: ["全部曲风", "流行", "民谣", "R&B", "摇滚", "电子"] },
+  { id: "status", label: "状态", options: ["全部状态", "待发展", "已关联", "已用于 Demo"] },
+  { id: "time", label: "时间", options: ["全部时间", "今天", "7 天内", "30 天内"] },
+] as const;
 
-  useEffect(() => {
-    if (!hasApiConnection()) {
-      return;
+const graphPositions: Record<string, { x: number; y: number }> = {
+  "tomorrow-line": { x: 48, y: 43 },
+  "morning-hook": { x: 17, y: 28 },
+  "taxi-window": { x: 77, y: 21 },
+  "station-ambience": { x: 17, y: 69 },
+  "last-goodnight": { x: 81, y: 51 },
+  "leave-story": { x: 39, y: 73 },
+  "demo-v1": { x: 64, y: 76 },
+  "hook-feedback": { x: 88, y: 82 },
+};
+
+function createGraphLinks(items: Inspiration[]): Array<[string, string]> {
+  const itemIds = new Set(items.map((item) => item.id));
+  const linkKeys = new Set<string>();
+  const links: Array<[string, string]> = [];
+
+  function addLink(source: string, target: string) {
+    if (!itemIds.has(source) || !itemIds.has(target) || source === target) return;
+    const key = [source, target].sort().join("::");
+    if (linkKeys.has(key)) return;
+    linkKeys.add(key);
+    links.push([source, target]);
+  }
+
+  graphLinks.forEach(([source, target]) => addLink(source, target));
+  items.forEach((source) => {
+    items
+      .filter((target) => target.id !== source.id)
+      .map((target) => ({ target, score: relationScore(source, target) }))
+      .filter(({ score }) => score > 0)
+      .sort((left, right) => right.score - left.score)
+      .slice(0, 3)
+      .forEach(({ target }) => addLink(source.id, target.id));
+  });
+
+  return links;
+}
+
+function createGraphPositions(items: Inspiration[]) {
+  const usesPresetLayout = items.every((item) => Boolean(graphPositions[item.id]));
+  if (usesPresetLayout) return graphPositions;
+
+  return items.reduce<Record<string, { x: number; y: number }>>((positions, item, index) => {
+    if (index === 0) {
+      positions[item.id] = { x: 50, y: 48 };
+      return positions;
     }
 
-    let cancelled = false;
-    void listInspirations()
-      .then((remoteCards) => {
-        if (cancelled) {
-          return;
-        }
+    const angle = index * 2.399963;
+    const radius = Math.min(43, 14 + Math.sqrt(index) * 8.5);
+    positions[item.id] = {
+      x: 50 + Math.cos(angle) * radius,
+      y: 48 + Math.sin(angle) * radius * 0.72,
+    };
+    return positions;
+  }, {});
+}
 
-        setCards(remoteCards);
-        writeStorage(STORAGE_KEYS.library, remoteCards);
+function InspirationPreview({ inspiration }: { inspiration: Inspiration }) {
+  const [showFullSummary, setShowFullSummary] = useState(false);
+
+  if (inspiration.kind === "图片") {
+    return (
+      <div className="inspiration-preview image-preview" aria-hidden="true">
+        <ImageIcon size={30} />
+        <span />
+        <span />
+        <span />
+      </div>
+    );
+  }
+
+  if (inspiration.duration || inspiration.mediaLabel) {
+    const audioLabel = inspiration.duration ?? inspiration.mediaLabel ?? "音频素材";
+    return (
+      <div className="inspiration-preview audio-preview" aria-label={`音频素材 ${audioLabel}`}>
+        {inspiration.kind === "Demo" && (
+          <span className="mini-play">
+            <Play size={15} />
+          </span>
+        )}
+        <span className="waveform" aria-hidden="true">
+          {[8, 18, 12, 26, 20, 34, 17, 24, 11, 29, 19, 36, 16, 25, 9, 21, 14, 28].map((height, index) => (
+            <i key={`${height}-${index}`} style={{ height }} />
+          ))}
+        </span>
+        <small>{audioLabel}</small>
+      </div>
+    );
+  }
+
+  if (inspiration.dialogueSummary) {
+    const canExpand = inspiration.dialogueSummary.length > 46;
+    return (
+      <div
+        className="inspiration-preview dialogue-summary-preview"
+        data-expanded={showFullSummary}
+      >
+        <span className="dialogue-summary-label">
+          <MessageCircle size={14} />
+          对话概括
+        </span>
+        <p>{inspiration.dialogueSummary}</p>
+        {canExpand && (
+          <button
+            aria-expanded={showFullSummary}
+            aria-label={`${showFullSummary ? "收起" : "展开"}${inspiration.title}的对话概括`}
+            onClick={(event) => {
+              event.stopPropagation();
+              setShowFullSummary((current) => !current);
+            }}
+            type="button"
+          >
+            {showFullSummary ? "收起" : "展开"}
+            <ChevronDown size={13} />
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  return null;
+}
+
+function InspirationCard({
+  inspiration,
+  selected,
+  layout,
+  onToggle,
+  onFocusGraph,
+}: {
+  inspiration: Inspiration;
+  selected: boolean;
+  layout: LibraryLayout;
+  onToggle: () => void;
+  onFocusGraph: () => void;
+}) {
+  const Icon = inspiration.icon;
+  const [showDetails, setShowDetails] = useState(false);
+  const [showOriginalDialogue, setShowOriginalDialogue] = useState(false);
+  const profileFields = [
+    ["核心主题", inspiration.theme],
+    ["情绪", inspiration.emotion],
+    ["场景", inspiration.scene],
+    ["核心意象", inspiration.coreImagery],
+    ["曲风", inspiration.genre],
+    ["旋律特征", inspiration.melodyFeatures],
+    ["创作位置", inspiration.creationPosition],
+    ["使用方式", inspiration.usage],
+  ].filter((field): field is [string, string] => Boolean(field[1]));
+
+  return (
+    <article
+      className="inspiration-card"
+      data-expanded={showDetails}
+      data-inspiration-id={inspiration.id}
+      data-layout={layout}
+      data-selected={selected}
+      onClick={onToggle}
+    >
+      <div className="inspiration-card-heading">
+        <span className="kind-icon">
+          <Icon size={19} />
+        </span>
+        <div>
+          <p><span>灵感类型</span>{inspiration.kind}</p>
+          <h3>{inspiration.title}</h3>
+        </div>
+        <button
+          aria-label={selected ? `取消选择${inspiration.title}` : `选择${inspiration.title}`}
+          aria-pressed={selected}
+          className="selection-indicator"
+          onClick={(event) => {
+            event.stopPropagation();
+            onToggle();
+          }}
+          type="button"
+        >
+          {selected ? <Check size={16} /> : null}
+        </button>
+      </div>
+
+      <InspirationPreview inspiration={inspiration} />
+
+      {inspiration.excerpt && (
+        <section className="inspiration-section inspiration-overview">
+          <span className="section-label">概况</span>
+          <p>{inspiration.excerpt}</p>
+          <div className="overview-actions">
+            <button
+              className="graph-jump-button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onFocusGraph();
+              }}
+              type="button"
+            >
+              <Network size={14} />
+              图谱定位
+            </button>
+            <button
+              aria-expanded={showDetails}
+              className="details-toggle"
+              onClick={(event) => {
+                event.stopPropagation();
+                setShowDetails((current) => {
+                  if (current) setShowOriginalDialogue(false);
+                  return !current;
+                });
+              }}
+              type="button"
+            >
+              {showDetails ? "收起详情" : "展开详情"}
+              <ChevronDown size={15} />
+            </button>
+          </div>
+        </section>
+      )}
+
+      {showDetails && (
+        <div className="inspiration-details">
+          {profileFields.length > 0 && (
+            <dl className="inspiration-profile" aria-label="创作画像">
+              {profileFields.map(([label, value]) => (
+                <div key={label}>
+                  <dt>{label}</dt>
+                  <dd>{value}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
+
+          {(inspiration.originalContent || inspiration.originalDialogue?.length) && (
+            <section className="inspiration-section original-section">
+              <span className="section-label">原始内容</span>
+              {inspiration.originalContent && <p>{inspiration.originalContent}</p>}
+              {inspiration.originalDialogue?.length ? (
+                <>
+                  <button
+                    aria-expanded={showOriginalDialogue}
+                    className="dialogue-toggle"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setShowOriginalDialogue((current) => !current);
+                    }}
+                    type="button"
+                  >
+                    <MessageCircle size={14} />
+                    {showOriginalDialogue ? "收起原始对话" : "查看原始对话"}
+                    <ChevronDown size={14} />
+                  </button>
+                  {showOriginalDialogue && (
+                    <div className="original-dialogue" onClick={(event) => event.stopPropagation()}>
+                      {inspiration.originalDialogue.map((message, index) => (
+                        <p data-speaker={index % 2 === 0 ? "user" : "ai"} key={message}>
+                          <span>{index % 2 === 0 ? "我" : "AI"}</span>
+                          {message}
+                        </p>
+                      ))}
+                    </div>
+                  )}
+                </>
+              ) : null}
+            </section>
+          )}
+
+          {(inspiration.relationSuggestion || inspiration.project || inspiration.status) && (
+            <section className="inspiration-section relation-section">
+              {inspiration.relationSuggestion && (
+                <div>
+                  <span className="section-label">关联建议</span>
+                  <p>{inspiration.relationSuggestion}</p>
+                </div>
+              )}
+              {(inspiration.project || inspiration.status) && (
+                <dl>
+                  {inspiration.project && (
+                    <div><dt>所属项目</dt><dd>{inspiration.project}</dd></div>
+                  )}
+                  {inspiration.status && (
+                    <div><dt>状态</dt><dd data-status={inspiration.status}>{inspiration.status}</dd></div>
+                  )}
+                </dl>
+              )}
+            </section>
+          )}
+
+          <div className="inspiration-tags" aria-label="灵感标签">
+            {inspiration.tags.map((tag, index) => (
+              <span data-primary={index === 0} key={tag}>{tag}</span>
+            ))}
+          </div>
+
+          <footer className="inspiration-card-footer">
+            <span>关联 {inspiration.relations} 条</span>
+            <button
+              className="card-more-button"
+              aria-label={`${inspiration.title}更多操作`}
+              onClick={(event) => event.stopPropagation()}
+              type="button"
+            >
+              <Ellipsis size={18} />
+            </button>
+          </footer>
+        </div>
+      )}
+    </article>
+  );
+}
+
+function LibraryPage() {
+  const [libraryInspirations, setLibraryInspirations] = useState<Inspiration[]>(initialLibraryInspirations);
+  const [syncState, setSyncState] = useState(hasApiConnection() ? "正在同步 SQLite" : "离线内容");
+  const [view, setView] = useState<LibraryView>("navigation");
+  const [layout, setLayout] = useState<LibraryLayout>("grid");
+  const [query, setQuery] = useState("");
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [focusedGraphId, setFocusedGraphId] = useState<string | null>(null);
+  const [filters, setFilters] = useState<Record<string, string>>({});
+  const [relationMode, setRelationMode] = useState("主题");
+  const [actionMessage, setActionMessage] = useState("");
+
+  useEffect(() => {
+    if (!hasApiConnection()) return;
+
+    let cancelled = false;
+    void Promise.all([listInspirations(), listProjects()])
+      .then(([records, projectRecords]) => {
+        if (cancelled) return;
+        const projectTitles = new Map(projectRecords.map((project) => [project.id, project.title]));
+        const mappedRecords = addRelationCounts(records.map((record) => mapInspirationRecord(record, projectTitles)));
+        writeCachedRecords(LIBRARY_CACHE_KEY, records);
+        writeCachedRecords(PROJECT_CACHE_KEY, projectRecords);
+        setLibraryInspirations(mappedRecords);
+        setSelectedIds((current) => current.filter((id) => mappedRecords.some((item) => item.id === id)));
+        setSyncState("SQLite 已同步");
       })
-      .catch(() => undefined);
+      .catch(() => {
+        setSyncState("同步失败，展示离线内容");
+      });
 
     return () => {
       cancelled = true;
     };
   }, []);
 
+  const activeGraphLinks = useMemo(() => createGraphLinks(libraryInspirations), [libraryInspirations]);
+  const activeGraphPositions = useMemo(() => createGraphPositions(libraryInspirations), [libraryInspirations]);
+  const activeFilterGroups = useMemo(
+    () =>
+      filterGroups.map((group) => {
+        const dynamicValues = libraryInspirations
+          .map((item) => {
+            if (group.id === "theme") return item.theme;
+            if (group.id === "emotion") return item.emotion;
+            if (group.id === "scene") return item.scene;
+            if (group.id === "genre") return item.genre;
+            if (group.id === "status") return item.status;
+            return undefined;
+          })
+          .filter((value): value is string => Boolean(value));
+        return {
+          ...group,
+          options: Array.from(new Set([group.options[0], ...group.options.slice(1), ...dynamicValues])),
+        };
+      }),
+    [libraryInspirations],
+  );
+
+  const filteredInspirations = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+
+    return libraryInspirations.filter((item) => {
+      const matchesQuery =
+        !normalizedQuery ||
+        [item.title, item.excerpt, item.project, item.kind, ...item.tags]
+          .join(" ")
+          .toLowerCase()
+          .includes(normalizedQuery);
+      const matchesTheme = !filters.theme || item.theme === filters.theme;
+      const matchesEmotion = !filters.emotion || item.emotion === filters.emotion;
+      const matchesScene = !filters.scene || item.scene === filters.scene;
+      const matchesGenre = !filters.genre || item.genre === filters.genre;
+      const matchesStatus = !filters.status || item.status === filters.status;
+      const matchesTime =
+        !filters.time ||
+        (filters.time === "今天" && item.updatedDays === 0) ||
+        (filters.time === "7 天内" && item.updatedDays <= 7) ||
+        (filters.time === "30 天内" && item.updatedDays <= 30);
+
+      return matchesQuery && matchesTheme && matchesEmotion && matchesScene && matchesGenre && matchesStatus && matchesTime;
+    });
+  }, [filters, libraryInspirations, query]);
+
+  const visibleGraphItems = useMemo(() => {
+    const graphRoots = focusedGraphId ? [...selectedIds, focusedGraphId] : selectedIds;
+    if (relationMode !== "当前灵感附近" || graphRoots.length === 0) {
+      return filteredInspirations;
+    }
+
+    const nearby = new Set(graphRoots);
+    activeGraphLinks.forEach(([source, target]) => {
+      if (nearby.has(source)) nearby.add(target);
+      if (nearby.has(target)) nearby.add(source);
+    });
+    return filteredInspirations.filter((item) => nearby.has(item.id));
+  }, [activeGraphLinks, filteredInspirations, focusedGraphId, relationMode, selectedIds]);
+
+  const visibleGraphIds = new Set(visibleGraphItems.map((item) => item.id));
+  const selectedInspirations = libraryInspirations.filter((item) => selectedIds.includes(item.id));
+  const createHref = `/create?inspirations=${selectedIds.join(",")}`;
+
+  function toggleSelection(id: string) {
+    setSelectedIds((current) =>
+      current.includes(id) ? current.filter((item) => item !== id) : [...current, id],
+    );
+    setActionMessage("");
+  }
+
+  function updateFilter(id: string, value: string) {
+    setFilters((current) => ({ ...current, [id]: value.startsWith("全部") ? "" : value }));
+  }
+
+  function showRelations() {
+    setView("graph");
+    setRelationMode("当前灵感附近");
+    setActionMessage("已在图谱中聚焦所选灵感及其关系");
+  }
+
+  function focusInGraph(id: string) {
+    setFocusedGraphId(id);
+    setView("graph");
+    setRelationMode("当前灵感附近");
+    window.setTimeout(() => {
+      document.querySelector(`[data-node-id="${id}"]`)?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }, 0);
+  }
+
   return (
     <main className="library-shell" aria-label="灵感库">
-      <header className="studio-topbar">
+      <header className="studio-topbar library-topbar">
         <a className="icon-link" href="/" aria-label="返回首页">
           <ArrowLeft size={19} />
         </a>
-        <h1>灵感库</h1>
+        <div>
+          <p>创作历史</p>
+          <h1>灵感库</h1>
+        </div>
         <a className="icon-link" href="/create" aria-label="开始创作">
           <Play size={18} />
         </a>
       </header>
 
-      <section className="library-hero">
-        <div>
-          <p>个人音乐基因库</p>
-          <h2>{cards.length ? `${cards.length} 条已保存灵感。` : "还没有保存灵感。"}</h2>
+      <section className="library-controls" aria-label="灵感库工具栏">
+        <div className="library-search">
+          <Search size={18} />
+          <input
+            aria-label="搜索灵感、标签或项目"
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="搜索灵感、标签或项目..."
+            type="search"
+            value={query}
+          />
+          {query && (
+            <button aria-label="清空搜索" onClick={() => setQuery("")} type="button">
+              <X size={16} />
+            </button>
+          )}
         </div>
-        <div className="tag-cluster">
-          {(cards[0]?.tags.map((tag) => tag.value).slice(0, 5) ?? ["等待第一条灵感"]).map((tag) => (
-            <span key={tag}>
-              <Tags size={12} />
-              {tag}
-            </span>
+
+        <div className="view-switcher" aria-label="视图切换">
+          <button data-active={view === "navigation"} onClick={() => setView("navigation")} type="button">
+            <LayoutGrid size={17} />
+            导航视图
+          </button>
+          <button data-active={view === "graph"} onClick={() => setView("graph")} type="button">
+            <Network size={17} />
+            图谱视图
+          </button>
+        </div>
+
+        <div className="filter-row">
+          {activeFilterGroups.map((group) => (
+            <label className="filter-select" data-active={Boolean(filters[group.id])} key={group.id}>
+              <span>{filters[group.id] || group.label}</span>
+              <select
+                aria-label={`按${group.label}筛选`}
+                onChange={(event) => updateFilter(group.id, event.target.value)}
+                value={filters[group.id] || group.options[0]}
+              >
+                {group.options.map((option) => <option key={option}>{option}</option>)}
+              </select>
+              <ChevronDown size={14} />
+            </label>
           ))}
+
+          {Object.values(filters).some(Boolean) && (
+            <button className="clear-filters" onClick={() => setFilters({})} type="button">
+              <X size={14} />
+              清除筛选
+            </button>
+          )}
+
+          {view === "navigation" && (
+            <div className="layout-switcher" aria-label="卡片布局">
+              <button aria-label="网格布局" data-active={layout === "grid"} onClick={() => setLayout("grid")} type="button">
+                <LayoutGrid size={17} />
+              </button>
+              <button aria-label="列表布局" data-active={layout === "list"} onClick={() => setLayout("list")} type="button">
+                <List size={18} />
+              </button>
+            </div>
+          )}
         </div>
       </section>
 
-      <section className="library-grid">
-        {cards.length ? (
-          cards.map((card) => {
-            const Icon = getLibraryIcon(card);
-            return (
-              <article className="library-tile" key={card.id}>
-                <span className="tile-icon">
-                  <Icon size={21} />
-                </span>
-                <p>{getLibraryType(card)}</p>
-                <h3>{card.title}</h3>
-                <span>{card.content || "仅附件灵感"}</span>
-                <strong>{card.tags[0]?.value ?? "待分析"}</strong>
-              </article>
-            );
-          })
-        ) : (
-          <article className="empty-state library-empty">
-            <Library size={22} />
-            <strong>灵感库为空</strong>
-            <p>回到工作台输入内容后，点击“加入灵感库”即可保存。</p>
-            <a className="entrance-button primary" href="/create">
-              <Play size={18} />
-              开始创作
-            </a>
-          </article>
-        )}
+      <section className="library-summary">
+        <div>
+          <strong>{filteredInspirations.length}</strong>
+          <span>条灵感</span>
+          <span className="summary-divider" />
+          <span>{libraryInspirations.reduce((total, item) => total + item.relations, 0)} 条关系</span>
+          <span className="library-sync-state">{syncState}</span>
+        </div>
+        <span>{selectedIds.length ? `已选择 ${selectedIds.length} 条，可继续融合创作` : "选择灵感，发现新的创作组合"}</span>
       </section>
+
+      {view === "navigation" ? (
+        <section className="inspiration-grid" data-layout={layout} aria-label="灵感导航视图">
+          {filteredInspirations.map((inspiration) => (
+            <InspirationCard
+              inspiration={inspiration}
+              key={inspiration.id}
+              layout={layout}
+              onFocusGraph={() => focusInGraph(inspiration.id)}
+              onToggle={() => toggleSelection(inspiration.id)}
+              selected={selectedIds.includes(inspiration.id)}
+            />
+          ))}
+          {filteredInspirations.length === 0 && (
+            <div className="library-empty">
+              <Search size={24} />
+              <strong>{libraryInspirations.length ? "没有匹配的灵感" : "灵感库暂无内容"}</strong>
+              <span>{libraryInspirations.length ? "调整搜索词或清除部分筛选条件" : "从创作工作台保存第一条灵感"}</span>
+            </div>
+          )}
+        </section>
+      ) : (
+        <section className="graph-panel" aria-label="灵感图谱视图">
+          <div className="graph-toolbar">
+            <div>
+              {["主题", "情绪", "项目", "当前灵感附近"].map((mode) => (
+                <button data-active={relationMode === mode} key={mode} onClick={() => setRelationMode(mode)} type="button">
+                  {mode === "主题" ? "按主题" : mode === "情绪" ? "按情绪" : mode === "项目" ? "按项目" : mode}
+                </button>
+              ))}
+            </div>
+            <span><SlidersHorizontal size={15} /> 节点大小表示关联度</span>
+          </div>
+
+          <div className="graph-canvas">
+            <svg aria-hidden="true" className="graph-links" preserveAspectRatio="none" viewBox="0 0 100 100">
+              {activeGraphLinks.map(([source, target], index) => {
+                if (!visibleGraphIds.has(source) || !visibleGraphIds.has(target)) return null;
+                const sourceItem = libraryInspirations.find((item) => item.id === source);
+                const targetItem = libraryInspirations.find((item) => item.id === target);
+                const matchesRelation =
+                  relationMode === "当前灵感附近" ||
+                  (relationMode === "主题" && Boolean(sourceItem?.theme) && sourceItem?.theme === targetItem?.theme) ||
+                  (relationMode === "情绪" && Boolean(sourceItem?.emotion) && sourceItem?.emotion === targetItem?.emotion) ||
+                  (relationMode === "项目" && Boolean(sourceItem?.project) && sourceItem?.project === targetItem?.project);
+                if (!matchesRelation) return null;
+                const start = activeGraphPositions[source];
+                const end = activeGraphPositions[target];
+                return (
+                  <line
+                    className={index % 3 === 0 ? "confirmed" : "suggested"}
+                    key={`${source}-${target}`}
+                    x1={start.x}
+                    x2={end.x}
+                    y1={start.y}
+                    y2={end.y}
+                  />
+                );
+              })}
+            </svg>
+
+            {visibleGraphItems.map((item) => {
+              const Icon = item.icon;
+              const position = activeGraphPositions[item.id];
+              const nodeSize = 62 + Math.min(item.relations, 5) * 7;
+              return (
+                <button
+                  aria-current={focusedGraphId === item.id ? "true" : undefined}
+                  aria-pressed={selectedIds.includes(item.id)}
+                  className="graph-node"
+                  data-focused={focusedGraphId === item.id}
+                  data-node-id={item.id}
+                  data-selected={selectedIds.includes(item.id)}
+                  key={item.id}
+                  onClick={() => toggleSelection(item.id)}
+                  style={{ left: `${position.x}%`, top: `${position.y}%`, width: nodeSize, height: nodeSize }}
+                  type="button"
+                >
+                  <Icon size={19} />
+                  <span>{item.title}</span>
+                </button>
+              );
+            })}
+
+            <div className="graph-legend">
+              <span><i className="solid" /> 已确认关联</span>
+              <span><i className="dashed" /> AI 潜在关联</span>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {selectedIds.length > 0 && (
+        <aside className="selection-bar" aria-label="已选灵感操作">
+          <div className="selection-details">
+            <button aria-label="清空选择" onClick={() => setSelectedIds([])} type="button"><X size={17} /></button>
+            <div>
+              <strong>已选 {selectedIds.length} 条灵感</strong>
+              <span>{selectedInspirations.map((item) => item.title).join(" · ")}</span>
+            </div>
+          </div>
+          {actionMessage && <span className="action-message">{actionMessage}</span>}
+          <div className="selection-actions">
+            <button onClick={showRelations} type="button"><Network size={16} />建立关联</button>
+            <button onClick={() => setActionMessage("已加入项目「离开城市之前」")} type="button"><FolderPlus size={16} />加入项目</button>
+            <a href={createHref}><Sparkles size={16} />融合并开始创作</a>
+          </div>
+        </aside>
+      )}
     </main>
   );
 }
