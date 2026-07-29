@@ -22,9 +22,24 @@ uvicorn app.main:app --reload --port 8000
 - `POST /api/inspirations`
 - `POST /api/uploads`
 - `POST /api/demo-tasks`
+- `GET /api/demo-tasks`
 - `GET /api/demo-tasks/{task_id}`
 
 Set the deployed API URL in the frontend with `VITE_API_BASE_URL`.
+
+## Persistence
+
+The backend stores product state in SQLite. Configure the file location with:
+
+```text
+SONIC_SEED_DB_PATH=data/sonicseed.sqlite3
+```
+
+Core tables:
+
+- `projects`: creation history and shared workspaces. `id` is the stable project identifier used by share links.
+- `inspirations`: inspiration library cards. `project_id` links each card to a project. Attachments and AI tags are stored as JSON.
+- `demo_tasks`: generated demo/version history. `id` maps to frontend `taskId`; `trace_id` stores the provider trace ID.
 
 Music generation uses MiniMax from the backend only. Configure:
 

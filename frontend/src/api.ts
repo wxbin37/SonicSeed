@@ -37,6 +37,7 @@ export type DemoTaskRequest = {
 
 export type DemoTaskResponse = {
   taskId: string;
+  projectId?: string;
   status: "queued" | "running" | "succeeded" | "failed";
   message: string;
   audioUrl?: string;
@@ -44,6 +45,7 @@ export type DemoTaskResponse = {
   lyrics?: string;
   provider?: string;
   traceId?: string;
+  createdAt?: string;
 };
 
 export type ProjectRecord = {
@@ -218,6 +220,21 @@ export async function getDemoTask(taskId: string): Promise<DemoTaskResponse> {
   }
 
   return response.json() as Promise<DemoTaskResponse>;
+}
+
+export async function listDemoTasks(projectId?: string): Promise<DemoTaskResponse[]> {
+  if (!API_BASE_URL) {
+    return [];
+  }
+
+  const search = projectId ? `?projectId=${encodeURIComponent(projectId)}` : "";
+  const response = await fetch(`${API_BASE_URL}/api/demo-tasks${search}`);
+
+  if (!response.ok) {
+    throw new Error(`Demo tasks request failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<DemoTaskResponse[]>;
 }
 
 export async function listProjects(): Promise<ProjectRecord[]> {

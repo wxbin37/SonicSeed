@@ -1,4 +1,5 @@
 import os
+from typing import Optional
 from uuid import uuid4
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
@@ -15,7 +16,16 @@ from .schemas import (
     ProjectSummary,
     UploadResponse,
 )
-from .services import PROJECTS, build_brief, create_demo_task, create_inspiration, get_demo_task, list_inspirations, upsert_project
+from .services import (
+    build_brief,
+    create_demo_task,
+    create_inspiration,
+    get_demo_task,
+    list_demo_tasks as read_demo_tasks,
+    list_inspirations,
+    list_projects as read_projects,
+    upsert_project,
+)
 
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 SUPPORTED_AUDIO_TYPES = {
@@ -38,7 +48,7 @@ app = FastAPI(
 
 cors_origins = [
     origin.strip()
-    for origin in os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:3010,http://localhost:8888").split(",")
+    for origin in os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:3010,http://localhost:3011,http://localhost:8888").split(",")
     if origin.strip()
 ]
 
@@ -58,7 +68,7 @@ def health() -> HealthResponse:
 
 @app.get("/api/projects", response_model=list[ProjectSummary])
 def list_projects() -> list[ProjectSummary]:
-    return PROJECTS
+    return read_projects()
 
 
 @app.post("/api/projects", response_model=ProjectSummary)
@@ -104,6 +114,11 @@ async def upload_audio(file: UploadFile = File(...)) -> UploadResponse:
 @app.post("/api/demo-tasks", response_model=DemoTaskResponse)
 def submit_demo_task(payload: DemoTaskRequest) -> DemoTaskResponse:
     return create_demo_task(payload)
+
+
+@app.get("/api/demo-tasks", response_model=list[DemoTaskResponse])
+def list_demo_tasks(projectId: Optional[str] = None) -> list[DemoTaskResponse]:
+    return read_demo_tasks(projectId)
 
 
 @app.get("/api/demo-tasks/{task_id}", response_model=DemoTaskResponse)

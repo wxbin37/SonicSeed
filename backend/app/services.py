@@ -1,9 +1,6 @@
 from __future__ import annotations
 
 import os
-import time
-from dataclasses import dataclass
-from datetime import datetime, timezone
 from uuid import uuid4
 
 import httpx
@@ -18,6 +15,17 @@ from .schemas import (
     InspirationCreateRequest,
     ProjectSummary,
 )
+from .storage import (
+    get_demo_task_record,
+    insert_inspiration_record,
+    list_demo_task_records,
+    list_inspiration_records,
+    list_project_records,
+    project_exists,
+    store_demo_task_record,
+    upsert_project_record,
+    utc_now_label,
+)
 
 
 DATA_FLOW = [
@@ -30,31 +38,6 @@ DATA_FLOW = [
     "数据库与音频存储",
     "分享页",
 ]
-
-
-PROJECTS: list[ProjectSummary] = []
-INSPIRATIONS: list[InspirationCard] = []
-
-
-@dataclass
-class StoredTask:
-    id: str
-    project_id: str
-    status: str
-    message: str
-    created_at: float
-    progress: int
-    audio_url: str | None = None
-    lyrics: str | None = None
-    provider: str | None = None
-    trace_id: str | None = None
-
-
-TASKS: dict[str, StoredTask] = {}
-
-
-def utc_now_label() -> str:
-    return datetime.now(timezone.utc).isoformat()
 
 
 def build_brief(payload: BriefRequest) -> BriefResponse:
@@ -108,8 +91,12 @@ def build_brief(payload: BriefRequest) -> BriefResponse:
     )
 
 
+def list_projects() -> list[ProjectSummary]:
+    return list_project_records()
+
+
 def list_inspirations() -> list[InspirationCard]:
-    return INSPIRATIONS
+    return list_inspiration_records()
 
 
 def create_inspiration(payload: InspirationCreateRequest) -> InspirationCard:
@@ -122,26 +109,18 @@ def create_inspiration(payload: InspirationCreateRequest) -> InspirationCard:
         tags=payload.tags,
         createdAt=utc_now_label(),
     )
-    INSPIRATIONS.insert(0, card)
-    return card
+    return insert_inspiration_record(card)
 
 
 def upsert_project(payload: ProjectSummary) -> ProjectSummary:
-    for index, project in enumerate(PROJECTS):
-        if project.id == payload.id:
-            PROJECTS[index] = payload
-            return payload
-
-    PROJECTS.insert(0, payload)
-    return payload
+    return upsert_project_record(payload)
 
 
 def ensure_project(project_id: str, title: str, subtitle: str) -> None:
-    if any(project.id == project_id for project in PROJECTS):
+    if project_exists(project_id):
         return
 
-    PROJECTS.insert(
-        0,
+    upsert_project_record(
         ProjectSummary(
             id=project_id,
             title=title[:80] or "未命名创作",
@@ -272,34 +251,13 @@ def call_minimax_music(payload: DemoTaskRequest) -> DemoTaskResponse:
 
 def create_demo_task(payload: DemoTaskRequest) -> DemoTaskResponse:
     result = call_minimax_music(payload)
-    TASKS[result.taskId] = StoredTask(
-        id=result.taskId,
-        project_id=payload.projectId,
-        status=result.status,
-        message=result.message,
-        created_at=time.monotonic(),
-        progress=result.progress or 0,
-        audio_url=result.audioUrl,
-        lyrics=result.lyrics,
-        provider=result.provider,
-        trace_id=result.traceId,
-    )
     ensure_project(payload.projectId, payload.referenceBrief.title, "生成版本")
-    return result
+    return store_demo_task_record(payload, result)
 
 
 def get_demo_task(task_id: str) -> DemoTaskResponse | None:
-    task = TASKS.get(task_id)
-    if task is None:
-        return None
+    return get_demo_task_record(task_id)
 
-    return DemoTaskResponse(
-        taskId=task.id,
-        status=task.status,
-        message=task.message,
-        progress=task.progress,
-        audioUrl=task.audio_url,
-        lyrics=task.lyrics,
-        provider=task.provider,
-        traceId=task.trace_id,
-    )
+
+def list_demo_tasks(project_id: str | None = None) -> list[DemoTaskResponse]:
+    return list_demo_task_records(project_id)

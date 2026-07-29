@@ -27,6 +27,8 @@ test("front-end defines the requested product routes", async () => {
   assert.match(app, /listProjects/);
   assert.match(app, /saveProject/);
   assert.match(app, /listInspirations/);
+  assert.match(app, /listDemoTasks/);
+  assert.match(app, /versionFromTask/);
   assert.match(app, /还没有创作历史/);
   assert.doesNotMatch(app, /凌晨副歌哼唱01/);
   assert.doesNotMatch(app, /雨夜出租车照片/);
@@ -35,14 +37,16 @@ test("front-end defines the requested product routes", async () => {
   assert.match(api, /VITE_API_BASE_URL/);
   assert.match(api, /uploadAudio/);
   assert.match(api, /getDemoTask/);
+  assert.match(api, /listDemoTasks/);
   assert.match(api, /saveInspiration/);
   assert.match(api, /hasApiConnection/);
 });
 
 test("back-end exposes the split deployment API contract", async () => {
-  const [main, schemas, requirements] = await Promise.all([
+  const [main, schemas, storage, requirements] = await Promise.all([
     readFile(new URL("../backend/app/main.py", import.meta.url), "utf8"),
     readFile(new URL("../backend/app/schemas.py", import.meta.url), "utf8"),
+    readFile(new URL("../backend/app/storage.py", import.meta.url), "utf8"),
     readFile(new URL("../backend/requirements.txt", import.meta.url), "utf8"),
   ]);
 
@@ -55,6 +59,7 @@ test("back-end exposes the split deployment API contract", async () => {
   assert.match(main, /@app\.post\("\/api\/inspirations"/);
   assert.match(main, /@app\.post\("\/api\/uploads"/);
   assert.match(main, /@app\.post\("\/api\/demo-tasks"/);
+  assert.match(main, /@app\.get\("\/api\/demo-tasks"/);
   assert.match(main, /@app\.get\("\/api\/demo-tasks\/\{task_id\}"/);
   assert.match(schemas, /class BriefRequest/);
   assert.match(schemas, /class BriefAttachment/);
@@ -64,6 +69,16 @@ test("back-end exposes the split deployment API contract", async () => {
   assert.match(schemas, /lyrics/);
   assert.match(schemas, /traceId/);
   assert.match(schemas, /provider/);
+  assert.match(schemas, /projectId/);
+  assert.match(schemas, /createdAt/);
+  assert.match(storage, /import sqlite3/);
+  assert.match(storage, /SONIC_SEED_DB_PATH/);
+  assert.match(storage, /CREATE TABLE IF NOT EXISTS projects/);
+  assert.match(storage, /CREATE TABLE IF NOT EXISTS inspirations/);
+  assert.match(storage, /CREATE TABLE IF NOT EXISTS demo_tasks/);
+  assert.match(storage, /attachments_json/);
+  assert.match(storage, /tags_json/);
+  assert.doesNotMatch(storage, /PROJECTS|INSPIRATIONS|TASKS/);
   assert.match(requirements, /fastapi/);
   assert.match(requirements, /uvicorn/);
 });

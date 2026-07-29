@@ -82,6 +82,7 @@ class DemoTaskRequest(BaseModel):
 
 class DemoTaskResponse(BaseModel):
     taskId: str
+    projectId: Optional[str] = None
     status: Literal["queued", "running", "succeeded", "failed"]
     message: str
     progress: Optional[int] = Field(default=None, ge=0, le=100)
@@ -89,6 +90,7 @@ class DemoTaskResponse(BaseModel):
     lyrics: Optional[str] = None
     provider: Optional[str] = None
     traceId: Optional[str] = None
+    createdAt: Optional[str] = None
 
 
 class HealthResponse(BaseModel):

@@ -30,6 +30,7 @@ import {
   getApiConnectionLabel,
   getDemoTask,
   hasApiConnection,
+  listDemoTasks,
   listInspirations,
   listProjects,
   saveInspiration,
@@ -68,6 +69,7 @@ type DemoVersion = {
   note: string;
   status: string;
   progress: number;
+  projectId?: string;
   taskId?: string;
   audioUrl?: string;
   lyrics?: string;
@@ -154,6 +156,37 @@ function writeStorage<T>(key: string, value: T) {
 function summarizePrompt(prompt: string) {
   const firstLine = prompt.split("\n").find((line) => line.trim())?.trim() ?? "未命名创作";
   return firstLine.slice(0, 24);
+}
+
+function getTaskStatusLabel(status: DemoTaskResponse["status"]) {
+  if (status === "succeeded") {
+    return "任务完成";
+  }
+
+  if (status === "failed") {
+    return "生成失败";
+  }
+
+  if (status === "running") {
+    return "生成中";
+  }
+
+  return "排队中";
+}
+
+function versionFromTask(task: DemoTaskResponse, index: number): DemoVersion {
+  return {
+    id: `version_${task.taskId}`,
+    title: `版本 ${index + 1}`,
+    meta: task.provider ? `${task.provider} · ${task.taskId}` : `任务 ${task.taskId}`,
+    note: task.message,
+    status: getTaskStatusLabel(task.status),
+    progress: task.progress ?? 0,
+    projectId: task.projectId,
+    taskId: task.taskId,
+    audioUrl: task.audioUrl,
+    lyrics: task.lyrics,
+  };
 }
 
 function getSharedProjectId() {
@@ -260,8 +293,10 @@ function HomePage() {
 }
 
 function CreatePage() {
-  const [projects, setProjects] = useState<Project[]>(() => readStorage<Project[]>(STORAGE_KEYS.projects, []));
-  const [activeProjectId, setActiveProjectId] = useState<string>(() => getSharedProjectId() || (readStorage<Project[]>(STORAGE_KEYS.projects, [])[0]?.id ?? ""));
+  const [projects, setProjects] = useState<Project[]>(() => (hasApiConnection() ? [] : readStorage<Project[]>(STORAGE_KEYS.projects, [])));
+  const [activeProjectId, setActiveProjectId] = useState<string>(() =>
+    getSharedProjectId() || (hasApiConnection() ? "" : (readStorage<Project[]>(STORAGE_KEYS.projects, [])[0]?.id ?? "")),
+  );
   const [historyCollapsed, setHistoryCollapsed] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
   const [draft, setDraft] = useState("");
@@ -269,12 +304,14 @@ function CreatePage() {
   const [analysisTags, setAnalysisTags] = useState<AnalysisTag[]>(initialTags);
   const [brief, setBrief] = useState<BriefResponse | null>(null);
   const [analysisState, setAnalysisState] = useState("实时分析待命");
-  const [versions, setVersions] = useState<DemoVersion[]>(() => readStorage<DemoVersion[]>(STORAGE_KEYS.versions, []));
-  const [activeVersionId, setActiveVersionId] = useState<string>(() => readStorage<DemoVersion[]>(STORAGE_KEYS.versions, [])[0]?.id ?? "");
+  const [versions, setVersions] = useState<DemoVersion[]>(() => (hasApiConnection() ? [] : readStorage<DemoVersion[]>(STORAGE_KEYS.versions, [])));
+  const [activeVersionId, setActiveVersionId] = useState<string>(() =>
+    hasApiConnection() ? "" : (readStorage<DemoVersion[]>(STORAGE_KEYS.versions, [])[0]?.id ?? ""),
+  );
   const [listenState, setListenState] = useState("暂无可试听版本");
   const [shareState, setShareState] = useState("复制协作链接");
   const [events, setEvents] = useState<CollaborationEvent[]>([]);
-  const [libraryCount, setLibraryCount] = useState(() => readStorage<InspirationCard[]>(STORAGE_KEYS.library, []).length);
+  const [libraryCount, setLibraryCount] = useState(() => (hasApiConnection() ? 0 : readStorage<InspirationCard[]>(STORAGE_KEYS.library, []).length));
   const analysisRequestRef = useRef(0);
 
   const activeProject = useMemo(
@@ -291,9 +328,14 @@ function CreatePage() {
     [activeProjectId, projects],
   );
 
+  const visibleVersions = useMemo(
+    () => (activeProject.id ? versions.filter((version) => version.projectId === activeProject.id || !version.projectId) : versions),
+    [activeProject.id, versions],
+  );
+
   const activeVersion = useMemo(
-    () => versions.find((version) => version.id === activeVersionId) ?? versions[0],
-    [activeVersionId, versions],
+    () => visibleVersions.find((version) => version.id === activeVersionId) ?? visibleVersions[0],
+    [activeVersionId, visibleVersions],
   );
 
   const currentPrompt = useMemo(() => buildPrompt(draft, attachments), [draft, attachments]);
@@ -320,6 +362,12 @@ function CreatePage() {
   }, [versions]);
 
   useEffect(() => {
+    if (!activeVersion && activeVersionId) {
+      setActiveVersionId("");
+    }
+  }, [activeVersion, activeVersionId]);
+
+  useEffect(() => {
     if (!hasApiConnection()) {
       return;
     }
@@ -341,6 +389,33 @@ function CreatePage() {
       })
       .catch(() => {
         setAnalysisState("后端项目同步失败");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!hasApiConnection()) {
+      return;
+    }
+
+    let cancelled = false;
+    void Promise.all([listInspirations(), listDemoTasks()])
+      .then(([remoteCards, remoteTasks]) => {
+        if (cancelled) {
+          return;
+        }
+
+        const remoteVersions = remoteTasks.map(versionFromTask);
+        setLibraryCount(remoteCards.length);
+        setVersions(remoteVersions);
+        setActiveVersionId((current) => current || (remoteVersions[0]?.id ?? ""));
+        writeStorage(STORAGE_KEYS.library, remoteCards);
+      })
+      .catch(() => {
+        setAnalysisState("后端历史同步失败");
       });
 
     return () => {
@@ -601,15 +676,9 @@ function CreatePage() {
 
       const versionId = `version_${task.taskId}`;
       const nextVersion: DemoVersion = {
+        ...versionFromTask({ ...task, projectId }, versions.length),
         id: versionId,
-        title: `版本 ${versions.length + 1}`,
-        meta: task.provider ? `${task.provider} · ${task.taskId}` : `任务 ${task.taskId}`,
-        note: task.message,
-        status: task.status === "succeeded" ? "任务完成" : task.status === "failed" ? "生成失败" : task.status === "queued" ? "排队中" : "生成中",
         progress: task.progress ?? 12,
-        taskId: task.taskId,
-        audioUrl: task.audioUrl,
-        lyrics: task.lyrics,
       };
 
       setVersions((current) => [nextVersion, ...current]);
@@ -653,14 +722,7 @@ function CreatePage() {
 
       try {
         latestTask = await getDemoTask(latestTask.taskId);
-        const statusLabel =
-          latestTask.status === "succeeded"
-            ? "任务完成"
-            : latestTask.status === "failed"
-              ? "生成失败"
-              : latestTask.status === "running"
-                ? "生成中"
-                : "排队中";
+        const statusLabel = getTaskStatusLabel(latestTask.status);
 
         setVersions((current) =>
           current.map((version) =>
@@ -670,6 +732,7 @@ function CreatePage() {
                   note: latestTask.message,
                   status: statusLabel,
                   progress: latestTask.progress ?? (latestTask.status === "succeeded" ? 100 : Math.min(92, version.progress + 16)),
+                  projectId: latestTask.projectId ?? version.projectId,
                   audioUrl: latestTask.audioUrl ?? version.audioUrl,
                   lyrics: latestTask.lyrics ?? version.lyrics,
                 }
@@ -719,12 +782,12 @@ function CreatePage() {
     }
 
     setVersions((current) => {
-      if (current.length < 2) {
+      if (visibleVersions.length < 2) {
         return current;
       }
 
-      const currentIndex = current.findIndex((version) => version.id === activeVersion.id);
-      const nextVersion = current[(currentIndex + 1) % current.length];
+      const currentIndex = visibleVersions.findIndex((version) => version.id === activeVersion.id);
+      const nextVersion = visibleVersions[(currentIndex + 1) % visibleVersions.length];
       setActiveVersionId(nextVersion.id);
       return current;
     });
@@ -967,7 +1030,7 @@ function CreatePage() {
                 <p>{listenState}</p>
                 <strong>{activeVersion?.title ?? "暂无版本"}</strong>
                 <span>{activeVersion?.status ?? "生成后可听"}</span>
-                <span>{activeVersion ? `${activeVersion.progress}%` : `${versions.length} 个版本`}</span>
+                <span>{activeVersion ? `${activeVersion.progress}%` : `${visibleVersions.length} 个版本`}</span>
               </aside>
             </div>
           </section>
@@ -1003,7 +1066,7 @@ function CreatePage() {
 }
 
 function LibraryPage() {
-  const [cards, setCards] = useState<InspirationCard[]>(() => readStorage<InspirationCard[]>(STORAGE_KEYS.library, []));
+  const [cards, setCards] = useState<InspirationCard[]>(() => (hasApiConnection() ? [] : readStorage<InspirationCard[]>(STORAGE_KEYS.library, [])));
 
   useEffect(() => {
     if (!hasApiConnection()) {

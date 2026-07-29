@@ -86,7 +86,54 @@ backend/.env.example
 - `POST /api/inspirations`
 - `POST /api/uploads`
 - `POST /api/demo-tasks`
+- `GET /api/demo-tasks`
 - `GET /api/demo-tasks/{task_id}`
+
+## SQLite 数据结构
+
+后端默认使用 SQLite 持久化，路径由 `SONIC_SEED_DB_PATH` 控制，默认是 `backend/data/sonicseed.sqlite3`。前端配置 `VITE_API_BASE_URL` 后，会从这些接口读取后台数据；浏览器 `localStorage` 只作为未连接后端时的离线缓存。
+
+`projects` 保存创作历史 / 协作空间：
+
+| 字段 | 含义 |
+| --- | --- |
+| `id` | 创作空间唯一 ID，分享链接和前端选中项目都靠它定位 |
+| `title` | 创作标题 |
+| `subtitle` | 摘要或当前素材说明 |
+| `status` | 当前进度状态，如“创作中”“生成失败”“已有可听版本” |
+| `progress` | 0-100 的进度数字 |
+| `owner` | 当前创建者或负责人显示名 |
+| `updated` | 给界面显示的更新时间文案 |
+| `created_at` / `updated_at` | 后台真实创建 / 更新时间 |
+
+`inspirations` 保存灵感库：
+
+| 字段 | 含义 |
+| --- | --- |
+| `id` | 灵感卡唯一 ID |
+| `project_id` | 所属创作空间 ID，对应前端 `projectId` |
+| `title` | 灵感标题 |
+| `content` | 原始文字、说明或附件上下文 |
+| `attachments_json` | 附件列表 JSON，包含 `type`、`name`、`uploadId` |
+| `tags_json` | AI 标签 JSON，包含主题、情绪、场景、适用位置 |
+| `created_at` | 创建时间 |
+
+`demo_tasks` 保存生成版本 / Demo 历史：
+
+| 字段 | 含义 |
+| --- | --- |
+| `id` | 后台任务 ID，对应前端 `taskId` |
+| `project_id` | 所属创作空间 ID |
+| `status` | `queued` / `running` / `succeeded` / `failed` |
+| `message` | 给用户看的任务状态说明 |
+| `progress` | 0-100 任务进度 |
+| `audio_url` | 供应商返回的音频地址，后续应转存到对象存储 |
+| `lyrics` | 本次生成使用或返回的歌词文本 |
+| `provider` | 音乐模型供应商，如 MiniMax |
+| `trace_id` | 供应商追踪 ID，用于排查错误 |
+| `prompt` | 送给模型的生成描述 |
+| `reference_brief_json` | 生成时使用的 AI Brief JSON |
+| `created_at` / `updated_at` | 后台真实创建 / 更新时间 |
 
 音乐生成走后端调用 MiniMax，不会在前端暴露密钥。未配置 `MINIMAX_API_KEY` 时，生成版本会返回明确失败状态，不会把固定样例伪装成 AI 结果。需要在后端平台配置：
 
