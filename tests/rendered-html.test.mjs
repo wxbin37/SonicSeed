@@ -30,10 +30,10 @@ test("server-renders the Sonic Seed entry", async () => {
 
   const html = await response.text();
   assert.match(html, /<title>声因 \| AI 协作音乐创作空间<\/title>/i);
+  assert.match(html, /<h1>声因<\/h1>/);
   assert.match(html, /灵感库/);
   assert.match(html, /开始创作/);
-  assert.match(html, /一段哼唱/);
-  assert.match(html, /合作方继续创作/);
+  assert.doesNotMatch(html, /Guide vocal|一段哼唱|合作方继续创作|AI理解与编曲/);
   assert.doesNotMatch(html, /灵感收集箱|主动召回/);
   assert.doesNotMatch(html, /codex-preview|react-loading-skeleton|SkeletonPreview/i);
 });
@@ -48,7 +48,14 @@ test("server-renders the create collaboration page", async () => {
   assert.match(html, /哼唱/);
   assert.match(html, /图片/);
   assert.match(html, /语音/);
-  assert.match(html, /协作创作空间/);
+  assert.match(html, /创作历史/);
+  assert.match(html, /工作台/);
+  assert.match(html, /主题/);
+  assert.match(html, /情绪/);
+  assert.match(html, /场景/);
+  assert.match(html, /适用位置/);
+  assert.match(html, /Demo 成品区/);
+  assert.match(html, /数据流/);
   assert.match(html, /前后台架构/);
 });
 
@@ -73,5 +80,5 @@ test("uses the requested visual constraints", async () => {
   assert.doesNotMatch(css, /linear-gradient|backdrop-filter|glass/i);
   assert.match(css, /--background:\s*#0d0d0d/i);
   assert.match(css, /--button-highlight:\s*#00f285/i);
-  assert.match(css, /@keyframes wave-dance/);
+  assert.match(css, /@keyframes status-pulse/);
 });

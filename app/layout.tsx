@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "声因 | AI 协作音乐创作空间",
-  description: "从一段哼唱开始，让 Demo 和合作接力自然发生。",
+  description: "AI 灵感管理与协作 Demo 创作工作台。",
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",
