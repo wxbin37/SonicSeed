@@ -61,8 +61,8 @@ Music generation uses MiniMax from the backend only. Configure:
 ```text
 MINIMAX_API_KEY=...
 MINIMAX_BASE_URL=https://api.minimaxi.com
-MINIMAX_MUSIC_MODEL=music-3.0-free
-MINIMAX_AUDIO_MODEL=music-cover-free
+MINIMAX_MUSIC_MODEL=music-3.0
+MINIMAX_AUDIO_MODEL=music-cover
 ```
 
 Uploaded audio is stored under `SONIC_SEED_UPLOAD_DIR`; when `/api/demo-tasks` receives an audio attachment `uploadId`, the backend sends `audio_base64` to MiniMax and uses `MINIMAX_AUDIO_MODEL`. Text-only generation uses `MINIMAX_MUSIC_MODEL`.

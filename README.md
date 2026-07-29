@@ -185,8 +185,8 @@ backend/.env.example
 ```text
 MINIMAX_API_KEY=...
 MINIMAX_BASE_URL=https://api.minimaxi.com
-MINIMAX_MUSIC_MODEL=music-3.0-free
-MINIMAX_AUDIO_MODEL=music-cover-free
+MINIMAX_MUSIC_MODEL=music-3.0
+MINIMAX_AUDIO_MODEL=music-cover
 ```
 
 上传音频会保存到后端 `SONIC_SEED_UPLOAD_DIR`，生成试听版时通过 `uploadId` 找回文件并按 MiniMax 脚本中的 `audio_base64` 方式提交。没有音频附件时走文本音乐模型，有音频附件时走 cover / reference audio 模型。

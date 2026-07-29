@@ -30,8 +30,8 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 
 DEFAULT_BASE_URL = "https://api.minimaxi.com"
-TEXT_MODEL = "music-3.0-free"
-COVER_MODEL = "music-cover-free"
+TEXT_MODEL = os.getenv("MINIMAX_MUSIC_MODEL", "music-3.0")
+COVER_MODEL = os.getenv("MINIMAX_AUDIO_MODEL", "music-cover")
 
 
 class MiniMaxError(RuntimeError):

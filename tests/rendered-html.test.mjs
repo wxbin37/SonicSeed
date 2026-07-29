@@ -155,17 +155,19 @@ test("back-end calls MiniMax only through server-side configuration", async () =
   assert.match(services, /is_instrumental/);
   assert.match(services, /audio_base64/);
   assert.match(services, /MINIMAX_AUDIO_MODEL/);
-  assert.match(services, /music-cover-free/);
+  assert.match(services, /TEXT_MUSIC_MODELS/);
+  assert.match(services, /build_minimax_prompt/);
+  assert.match(services, /music-cover/);
   assert.match(services, /extract_minimax_lyrics/);
   assert.match(services, /generated_lyrics/);
   assert.match(services, /normalize_minimax_error_message/);
   assert.match(services, /余额不足/);
-  assert.match(services, /music-3\.0-free/);
+  assert.match(services, /music-3\.0/);
   assert.match(services, /未配置 MINIMAX_API_KEY/);
   assert.doesNotMatch(services, /fallback|mock|固定样例/i);
   assert.match(envExample, /MINIMAX_BASE_URL=https:\/\/api\.minimaxi\.com/);
-  assert.match(envExample, /MINIMAX_MUSIC_MODEL=music-3\.0-free/);
-  assert.match(envExample, /MINIMAX_AUDIO_MODEL=music-cover-free/);
+  assert.match(envExample, /MINIMAX_MUSIC_MODEL=music-3\.0/);
+  assert.match(envExample, /MINIMAX_AUDIO_MODEL=music-cover/);
   assert.match(envExample, /SONIC_SEED_UPLOAD_DIR=data\/uploads/);
 });
 

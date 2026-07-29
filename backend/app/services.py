@@ -61,8 +61,9 @@ DATA_FLOW = [
 ]
 
 DEFAULT_MINIMAX_BASE_URL = "https://api.minimaxi.com"
-DEFAULT_MINIMAX_MUSIC_MODEL = "music-3.0-free"
-DEFAULT_MINIMAX_AUDIO_MODEL = "music-cover-free"
+DEFAULT_MINIMAX_MUSIC_MODEL = "music-3.0"
+DEFAULT_MINIMAX_AUDIO_MODEL = "music-cover"
+TEXT_MUSIC_MODELS = {"music-3.0", "music-3.0-free", "music-2.6", "music-2.6-free"}
 
 
 def is_ascii_token(value: str) -> bool:
@@ -177,30 +178,37 @@ def ensure_project(project_id: str, title: str, subtitle: str) -> None:
 
 def extract_user_lyrics(prompt: str) -> str:
     lines = [line.strip() for line in prompt.splitlines() if line.strip()]
-    lyric_lines = []
-    for line in lines:
-        if line.startswith("附件:") or line.startswith("uploadId:"):
-            continue
-        if len(line) <= 80:
-            lyric_lines.append(line)
+    first_section_index = next((index for index, line in enumerate(lines) if line.startswith("[") and "]" in line[:24]), -1)
+    if first_section_index < 0:
+        return ""
 
-    return "\n".join(lyric_lines[:12]).strip()
+    return "\n".join(lines[first_section_index:])[:3500].strip()
 
 
-def build_lyrics(prompt: str, provided_lyrics: str | None) -> str:
+def build_lyrics(prompt: str, provided_lyrics: str | None) -> str | None:
     if provided_lyrics and provided_lyrics.strip():
         return provided_lyrics.strip()[:3500]
 
     extracted = extract_user_lyrics(prompt)
     if extracted:
-        return f"[Verse]\n{extracted}\n[Chorus]\n我们把告别说得很轻\n像明天还会见"
+        return extracted
 
-    return "[Verse]\n把还没说完的话放进夜色\n让旋律替我们慢慢靠近\n[Chorus]\n我们把告别说得很轻\n像明天还会见"
+    return None
 
 
 def build_music_prompt(payload: DemoTaskRequest) -> str:
     tag_text = "，".join(f"{tag.label}:{tag.value}" for tag in payload.referenceBrief.tags)
     prompt = f"{payload.referenceBrief.suggestedStyle}，{tag_text}，{payload.prompt}"
+    return prompt[:2000]
+
+
+def build_minimax_prompt(payload: DemoTaskRequest, model: str) -> str:
+    prompt = "，".join(part.strip() for part in build_music_prompt(payload).replace("\n", "，").split("，") if part.strip())
+    if model.startswith("music-cover"):
+        if len(prompt) < 10:
+            prompt = f"{prompt}，都市流行，中速，情绪逐渐释放"
+        return prompt[:300]
+
     return prompt[:2000]
 
 
@@ -232,7 +240,7 @@ def parse_minimax_audio(audio: object) -> str | None:
     return f"data:audio/mpeg;base64,{encoded_audio}"
 
 
-def extract_minimax_lyrics(result: dict[str, object], default_lyrics: str) -> str:
+def extract_minimax_lyrics(result: dict[str, object], default_lyrics: str | None) -> str | None:
     candidate_keys = {"lyrics", "lyric", "generated_lyrics", "optimized_lyrics"}
     stack: list[object] = [result.get("data") or {}, result.get("extra_info") or {}, result]
 
@@ -297,10 +305,7 @@ def call_minimax_music(payload: DemoTaskRequest) -> DemoTaskResponse:
     task_id = f"task_{uuid4().hex[:10]}"
     request_body: dict[str, object] = {
         "model": model,
-        "prompt": build_music_prompt(payload),
-        "lyrics_optimizer": True,
-        "is_instrumental": False,
-        "lyrics": lyrics,
+        "prompt": build_minimax_prompt(payload, model),
         "output_format": "url",
         "stream": False,
         "audio_setting": {
@@ -309,10 +314,16 @@ def call_minimax_music(payload: DemoTaskRequest) -> DemoTaskResponse:
             "format": "mp3",
         },
     }
-    if payload.lyrics and payload.lyrics.strip():
-        request_body["lyrics"] = payload.lyrics.strip()[:3500]
-    if audio_base64:
+    if model in TEXT_MUSIC_MODELS:
+        request_body["is_instrumental"] = False
+        if lyrics:
+            request_body["lyrics"] = lyrics[:3500]
+        else:
+            request_body["lyrics_optimizer"] = True
+    elif audio_base64:
         request_body["audio_base64"] = audio_base64
+        if lyrics:
+            request_body["lyrics"] = lyrics[:1000]
 
     try:
         response = httpx.post(
@@ -330,7 +341,7 @@ def call_minimax_music(payload: DemoTaskRequest) -> DemoTaskResponse:
         return DemoTaskResponse(
             taskId=task_id,
             status="failed",
-            message=f"MiniMax 请求失败：{error}",
+            message=f"MiniMax 请求失败（模型：{model}）：{error}",
             progress=0,
             lyrics=lyrics,
             provider="MiniMax",
@@ -341,7 +352,7 @@ def call_minimax_music(payload: DemoTaskRequest) -> DemoTaskResponse:
         return DemoTaskResponse(
             taskId=task_id,
             status="failed",
-            message=normalize_minimax_error_message(base_resp.get("status_msg")),
+            message=f"{normalize_minimax_error_message(base_resp.get('status_msg'))}（模型：{model}）",
             progress=0,
             lyrics=lyrics,
             provider="MiniMax",
@@ -364,7 +375,7 @@ def call_minimax_music(payload: DemoTaskRequest) -> DemoTaskResponse:
     return DemoTaskResponse(
         taskId=task_id,
         status="succeeded",
-        message="MiniMax 已返回音频，URL 有效期约 24 小时，请后续接入对象存储做持久化。",
+        message=f"MiniMax 已返回音频（模型：{model}），URL 有效期约 24 小时，请后续接入对象存储做持久化。",
         progress=100,
         audioUrl=audio_url,
         lyrics=generated_lyrics,
