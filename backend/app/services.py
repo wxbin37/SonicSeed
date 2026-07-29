@@ -16,6 +16,8 @@ from .schemas import (
     DemoTaskResponse,
     InspirationCard,
     InspirationCreateRequest,
+    ProjectWorkspaceResponse,
+    ProjectWorkspaceSaveRequest,
     ProjectSummary,
     ShareLinkCreateRequest,
     ShareLinkJoinResponse,
@@ -25,6 +27,7 @@ from .storage import (
     create_share_link_record,
     get_demo_task_record,
     get_collaboration_session_record,
+    get_project_workspace_record,
     insert_inspiration_record,
     join_share_link_record,
     list_collaboration_session_records,
@@ -34,6 +37,7 @@ from .storage import (
     project_exists,
     store_demo_task_record,
     update_collaboration_session_record,
+    upsert_project_workspace_record,
     upsert_project_record,
     utc_now_label,
 )
@@ -125,6 +129,14 @@ def create_inspiration(payload: InspirationCreateRequest) -> InspirationCard:
 
 def upsert_project(payload: ProjectSummary) -> ProjectSummary:
     return upsert_project_record(payload)
+
+
+def get_project_workspace(project_id: str) -> ProjectWorkspaceResponse | None:
+    return get_project_workspace_record(project_id)
+
+
+def save_project_workspace(project_id: str, payload: ProjectWorkspaceSaveRequest) -> ProjectWorkspaceResponse:
+    return upsert_project_workspace_record(project_id, payload)
 
 
 def ensure_project(project_id: str, title: str, subtitle: str) -> None:
