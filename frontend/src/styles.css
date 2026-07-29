@@ -536,6 +536,29 @@ h3 {
   white-space: nowrap;
 }
 
+.heading-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-200);
+}
+
+.setup-open-button {
+  display: inline-flex;
+  min-height: 30px;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-100);
+  border: 0;
+  border-radius: var(--corner-round);
+  padding: 0 var(--space-300);
+  background: var(--button-mask);
+  color: var(--text-400);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+}
+
 .backend-chip {
   width: fit-content;
   margin-bottom: var(--space-300);
@@ -862,6 +885,418 @@ h3 {
   color: var(--button-highlight);
 }
 
+.creation-modal-layer {
+  position: fixed;
+  z-index: 20;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: var(--space-500);
+  background: rgba(0, 0, 0, 0.72);
+}
+
+.creation-modal {
+  display: grid;
+  width: min(980px, 100%);
+  max-height: calc(100svh - 40px);
+  overflow: auto;
+  border: 1px solid var(--divider);
+  border-radius: var(--corner-default);
+  background: var(--mask);
+  box-shadow: var(--shadow-soft);
+}
+
+.creation-modal-tabs {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-300);
+  min-height: 64px;
+  padding: 0 var(--space-400);
+  border-bottom: 1px solid var(--divider);
+}
+
+.tab-strip {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-500);
+  min-height: 64px;
+}
+
+.tab-strip button {
+  position: relative;
+  border: 0;
+  background: transparent;
+  color: var(--text-300);
+  font-size: 16px;
+  line-height: 21px;
+  font-weight: 600;
+}
+
+.tab-strip button[data-active="true"] {
+  color: var(--button-highlight);
+}
+
+.tab-strip button[data-active="true"]::after {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  border-radius: var(--corner-round);
+  background: var(--button-highlight);
+  content: "";
+}
+
+.modal-close-button {
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: var(--corner-round);
+  background: var(--button-mask);
+  color: var(--text-400);
+}
+
+.creation-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-300);
+  padding: var(--space-400);
+}
+
+.creation-modal-head h2 {
+  font-size: 17px;
+  line-height: 23px;
+  font-weight: 600;
+}
+
+.creation-modal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-200);
+}
+
+.draft-button,
+.generate-listen-button,
+.add-seed-button {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-200);
+  border: 0;
+  border-radius: var(--corner-s);
+  padding: 0 var(--space-400);
+  font-size: 13px;
+  line-height: 17px;
+  font-weight: 600;
+}
+
+.draft-button {
+  background: transparent;
+  color: var(--text-300);
+}
+
+.generate-listen-button,
+.add-seed-button {
+  background: var(--button-highlight);
+  color: var(--button-icon);
+  box-shadow: var(--shadow-button);
+}
+
+.creation-modal-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 360px) minmax(0, 1fr);
+  gap: var(--space-300);
+  padding: 0 var(--space-400) var(--space-400);
+}
+
+.selected-seeds-panel,
+.prompt-config-panel,
+.modal-version-tree {
+  min-width: 0;
+  border: 1px solid var(--divider);
+  border-radius: var(--corner-default);
+  background: var(--mask-strong);
+  padding: var(--space-300);
+}
+
+.selected-seeds-panel {
+  display: grid;
+  align-content: start;
+  gap: var(--space-300);
+}
+
+.selected-seeds-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-300);
+  min-height: 40px;
+}
+
+.selected-seeds-head h3,
+.prompt-card h3,
+.music-gene-panel h3,
+.modal-version-tree h3 {
+  font-size: 16px;
+  line-height: 22px;
+  font-weight: 600;
+}
+
+.selected-seeds-head label,
+.gene-setting-row label {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.selected-seeds-head select,
+.gene-setting-row select {
+  min-height: 34px;
+  min-width: 90px;
+  appearance: none;
+  border: 1px solid var(--divider);
+  border-radius: var(--corner-s);
+  padding: 0 34px 0 var(--space-300);
+  background: var(--mask);
+  color: var(--text-400);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+}
+
+.selected-seeds-head label svg,
+.gene-setting-row label svg {
+  position: absolute;
+  right: var(--space-300);
+  color: var(--text-300);
+  pointer-events: none;
+}
+
+.seed-list {
+  display: grid;
+  gap: var(--space-200);
+}
+
+.seed-item {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-200);
+  min-height: 64px;
+  border: 1px solid var(--divider);
+  border-radius: var(--corner-s);
+  padding: var(--space-200);
+  background: var(--mask);
+  color: var(--text-500);
+  text-align: left;
+}
+
+.seed-item[data-selected="true"] {
+  border-color: var(--button-highlight);
+  box-shadow: inset 0 0 0 1px rgba(0, 242, 133, 0.16);
+}
+
+.seed-icon {
+  display: inline-flex;
+  width: 40px;
+  height: 40px;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--corner-s);
+  background: var(--button-mask);
+}
+
+.seed-icon[data-tone="coral"] {
+  color: #ff7d6e;
+}
+
+.seed-icon[data-tone="mint"] {
+  color: #74e8c6;
+}
+
+.seed-icon[data-tone="night"] {
+  color: #b9c5ff;
+}
+
+.seed-icon[data-tone="blue"] {
+  color: #8fb8ff;
+}
+
+.seed-icon[data-tone="rose"] {
+  color: #ff8fb4;
+}
+
+.seed-icon[data-tone="violet"] {
+  color: #c69aff;
+}
+
+.seed-copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.seed-copy em,
+.seed-copy small,
+.seed-source,
+.prompt-editor span,
+.modal-version-tree p {
+  overflow: hidden;
+  color: var(--text-300);
+  font-size: 12px;
+  font-style: normal;
+  line-height: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.seed-copy strong {
+  overflow: hidden;
+  font-size: 13px;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.seed-source {
+  justify-self: end;
+  max-width: 78px;
+}
+
+.add-seed-button {
+  width: 100%;
+  background: var(--button-mask);
+  color: var(--button-highlight);
+  box-shadow: none;
+}
+
+.prompt-config-panel {
+  display: grid;
+  align-content: start;
+  gap: var(--space-500);
+}
+
+.prompt-card,
+.music-gene-panel {
+  display: grid;
+  gap: var(--space-300);
+}
+
+.prompt-editor {
+  display: grid;
+  gap: var(--space-100);
+  border: 1px solid var(--divider);
+  border-radius: var(--corner-default);
+  background: var(--mask);
+  padding: var(--space-300);
+}
+
+.prompt-editor textarea {
+  min-height: 128px;
+  border: 0;
+  background: transparent;
+  color: var(--text-500);
+  resize: vertical;
+  font-size: 14px;
+  line-height: 22px;
+}
+
+.prompt-editor span {
+  justify-self: end;
+}
+
+.prompt-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-200);
+}
+
+.prompt-chip-row button {
+  min-height: 34px;
+  border: 0;
+  border-radius: var(--corner-round);
+  padding: 0 var(--space-300);
+  background: var(--button-mask);
+  color: var(--text-400);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+}
+
+.gene-setting-list {
+  display: grid;
+  gap: var(--space-200);
+}
+
+.gene-setting-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(150px, 210px);
+  align-items: center;
+  gap: var(--space-300);
+}
+
+.gene-setting-row div {
+  min-width: 0;
+}
+
+.gene-setting-row strong {
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.gene-setting-row span {
+  color: var(--text-300);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.gene-setting-row select {
+  width: 100%;
+  min-height: 40px;
+}
+
+.modal-version-tree {
+  display: grid;
+  gap: var(--space-400);
+  margin: 0 var(--space-400) var(--space-400);
+}
+
+.modal-version-tree > div:first-child p {
+  color: var(--text-300);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.version-tree-list {
+  display: grid;
+  gap: var(--space-200);
+}
+
+.version-tree-list article {
+  display: grid;
+  gap: var(--space-100);
+  border: 1px solid var(--divider);
+  border-radius: var(--corner-s);
+  padding: var(--space-300);
+  background: var(--mask);
+}
+
+.version-tree-list span {
+  color: var(--button-highlight);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+}
+
+.version-tree-list strong {
+  font-size: 14px;
+  line-height: 20px;
+}
+
 @keyframes status-pulse {
   0%,
   100% {
@@ -979,6 +1414,16 @@ h3 {
     margin-bottom: var(--space-300);
   }
 
+  .panel-heading.compact {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .heading-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
   .workbench-panel {
     min-height: 640px;
   }
@@ -996,5 +1441,64 @@ h3 {
   .utility-button,
   .send-button {
     width: 100%;
+  }
+
+  .creation-modal-layer {
+    padding: var(--space-300);
+    align-items: start;
+  }
+
+  .creation-modal {
+    max-height: calc(100svh - 24px);
+  }
+
+  .creation-modal-tabs,
+  .creation-modal-head {
+    align-items: flex-start;
+  }
+
+  .creation-modal-head,
+  .creation-modal-actions {
+    flex-direction: column;
+  }
+
+  .creation-modal-actions,
+  .draft-button,
+  .generate-listen-button {
+    width: 100%;
+  }
+
+  .creation-modal-grid {
+    grid-template-columns: 1fr;
+    padding: 0 var(--space-300) var(--space-300);
+  }
+
+  .seed-item {
+    grid-template-columns: 40px minmax(0, 1fr);
+  }
+
+  .seed-source {
+    grid-column: 2;
+    justify-self: start;
+    max-width: 100%;
+  }
+
+  .gene-setting-row {
+    grid-template-columns: 1fr;
+    gap: var(--space-200);
+  }
+
+  .gene-setting-row label,
+  .selected-seeds-head label {
+    width: 100%;
+  }
+
+  .gene-setting-row select,
+  .selected-seeds-head select {
+    width: 100%;
+  }
+
+  .modal-version-tree {
+    margin: 0 var(--space-300) var(--space-300);
   }
 }

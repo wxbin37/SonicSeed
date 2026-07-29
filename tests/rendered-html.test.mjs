@@ -17,6 +17,15 @@ test("front-end defines the requested product routes", async () => {
   assert.match(app, /创作历史/);
   assert.match(app, /工作台/);
   assert.match(app, /AI 标签/);
+  assert.match(app, /创作配置弹窗/);
+  assert.match(app, /当前创作（基于 V1 原生版）/);
+  assert.match(app, /已选灵感/);
+  assert.match(app, /Prompt/);
+  assert.match(app, /音乐基因设置/);
+  assert.match(app, /handleApplyCreationSetup/);
+  assert.match(app, /toggleCreationSeed/);
+  assert.match(app, /生成试听版/);
+  assert.match(app, /版本树/);
   assert.match(app, /可上传 MP3\/M4A\/WAV\/WebM、图片、视频/);
   assert.match(app, /PanelLeftClose/);
   assert.match(app, /PanelLeftOpen/);
@@ -145,6 +154,9 @@ test("uses split deployment settings and visual constraints", async () => {
   assert.match(frontendPackage, /"lucide-react"/);
   assert.doesNotMatch(rootPackage, /"next"|"vinext"|drizzle|wrangler/);
   assert.doesNotMatch(css, /linear-gradient|backdrop-filter|glass/i);
+  assert.match(css, /creation-modal-layer/);
+  assert.match(css, /selected-seeds-panel/);
+  assert.match(css, /prompt-config-panel/);
   assert.match(css, /--background:\s*#0d0d0d/i);
   assert.match(css, /--button-highlight:\s*#00f285/i);
   assert.match(css, /@keyframes status-pulse/);

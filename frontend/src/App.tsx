@@ -2,8 +2,11 @@ import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import {
   ArrowLeft,
   Bot,
+  ChevronDown,
+  Check,
   Copy,
   FileAudio,
+  Heart,
   Headphones,
   Image as ImageIcon,
   Library,
@@ -18,6 +21,7 @@ import {
   Send,
   Server,
   Share2,
+  SlidersHorizontal,
   Tags,
   Type,
   UsersRound,
@@ -101,12 +105,129 @@ type WorkbenchSnapshot = {
   updatedAt?: string;
 };
 
+type CreationSeed = {
+  id: string;
+  kind: "歌词卡" | "旋律卡" | "氛围图" | "情绪卡" | "节奏卡" | "故事卡";
+  title: string;
+  description: string;
+  source: string;
+  tone: "coral" | "mint" | "night" | "blue" | "rose" | "violet";
+};
+
+type CreationSetting = {
+  id: string;
+  label: string;
+  source: string;
+  options: string[];
+};
+
 const initialMessages: ChatMessage[] = [
   {
     id: "msg_2",
     role: "ai",
     label: "AI",
     text: "把歌词、旋律描述、修改意见或附件发给我。你可以先加入灵感库，也可以直接生成一个版本。",
+  },
+];
+
+const defaultCreationPrompt = "保留原有歌词和主旋律，加入电子合成器元素，节奏偏中速，前半段氛围克制，副歌部分情绪上升，整体风格偏未来都市感。";
+
+const defaultCreationSeeds: CreationSeed[] = [
+  {
+    id: "seed_lyric_city_light",
+    kind: "歌词卡",
+    title: "城市的灯火在远方等我...",
+    description: "一句适合主歌结尾的城市告别歌词",
+    source: "来自 我",
+    tone: "coral",
+  },
+  {
+    id: "seed_melody_walker",
+    kind: "旋律卡",
+    title: "夜行者_主旋律_01",
+    description: "偏克制的主旋律动机",
+    source: "来自 我",
+    tone: "mint",
+  },
+  {
+    id: "seed_scene_rain",
+    kind: "氛围图",
+    title: "雨夜街道",
+    description: "霓虹、雨面、夜间出租车",
+    source: "来自 我",
+    tone: "night",
+  },
+  {
+    id: "seed_synth_hook",
+    kind: "旋律卡",
+    title: "合成器旋律片段",
+    description: "适合副歌上扬的合成器动机",
+    source: "来自 Bobby",
+    tone: "blue",
+  },
+  {
+    id: "seed_emotion",
+    kind: "情绪卡",
+    title: "孤独 / 坚定 / 希望",
+    description: "从压抑到释放的情绪走向",
+    source: "来自 Lily",
+    tone: "rose",
+  },
+  {
+    id: "seed_beat",
+    kind: "节奏卡",
+    title: "电子鼓点 128BPM",
+    description: "中速推进，鼓组留白",
+    source: "来自 AI 生成",
+    tone: "violet",
+  },
+];
+
+const promptChips = [
+  {
+    label: "参考：原生版Prompt",
+    value: defaultCreationPrompt,
+  },
+  {
+    label: "电子风格模板",
+    value: "保留原有歌词和主旋律，加入电子合成器、低频脉冲和轻量鼓组，整体偏未来都市流行。",
+  },
+  {
+    label: "情绪：克制到爆发",
+    value: "前半段人声和钢琴保持克制，副歌加入更开阔的和声与鼓组，让情绪从隐忍推进到释放。",
+  },
+];
+
+const creationSettingRows: CreationSetting[] = [
+  {
+    id: "lyric",
+    label: "核心歌词",
+    source: "城市的灯火在远方等我...",
+    options: ["锁定", "允许微调", "仅提取意象"],
+  },
+  {
+    id: "melody",
+    label: "主旋律",
+    source: "夜行者_主旋律_01",
+    options: ["参考，不强制", "锁定主旋律", "只保留轮廓"],
+  },
+  {
+    id: "newMelody",
+    label: "新增旋律",
+    source: "合成器旋律片段",
+    options: ["核心", "参考", "不使用"],
+  },
+  {
+    id: "arrangement",
+    label: "编曲风格",
+    source: "未来都市感",
+    options: ["允许AI自由生成", "电子流行", "钢琴与电子氛围"],
+  },
+  {
+    id: "emotion",
+    label: "情绪氛围",
+    source: "孤独 / 坚定 / 希望",
+    options: ["仅提取情绪", "作为核心情绪", "允许重新创作"],
   },
 ];
 
@@ -315,6 +436,40 @@ function getLibraryType(card: InspirationCard) {
   return "灵感";
 }
 
+function getCreationSeedIcon(kind: CreationSeed["kind"]) {
+  if (kind === "歌词卡" || kind === "故事卡") {
+    return Type;
+  }
+
+  if (kind === "氛围图") {
+    return ImageIcon;
+  }
+
+  if (kind === "情绪卡") {
+    return Heart;
+  }
+
+  if (kind === "节奏卡") {
+    return SlidersHorizontal;
+  }
+
+  return FileAudio;
+}
+
+function cardToCreationSeed(card: InspirationCard): CreationSeed {
+  const firstAttachment = card.attachments[0];
+  const kind: CreationSeed["kind"] = firstAttachment?.type === "image" || firstAttachment?.type === "video" ? "氛围图" : firstAttachment?.type === "audio" ? "旋律卡" : "歌词卡";
+
+  return {
+    id: `library_${card.id}`,
+    kind,
+    title: card.title,
+    description: card.content || card.tags[0]?.value || "来自灵感库的素材",
+    source: "来自 灵感库",
+    tone: kind === "氛围图" ? "night" : kind === "旋律卡" ? "mint" : "coral",
+  };
+}
+
 function inferMode(attachments: LocalAttachment[]): InputMode {
   if (attachments.some((attachment) => attachment.type === "audio")) {
     return "humming";
@@ -396,6 +551,18 @@ function CreatePage() {
   const [shareState, setShareState] = useState("复制协作链接");
   const [events, setEvents] = useState<CollaborationEvent[]>([]);
   const [libraryCount, setLibraryCount] = useState(() => (hasApiConnection() ? 0 : readStorage<InspirationCard[]>(STORAGE_KEYS.library, []).length));
+  const [libraryCards, setLibraryCards] = useState<InspirationCard[]>(() =>
+    hasApiConnection() ? [] : readStorage<InspirationCard[]>(STORAGE_KEYS.library, []),
+  );
+  const [creationModalOpen, setCreationModalOpen] = useState(() => !getShareToken());
+  const [creationTab, setCreationTab] = useState<"creation" | "versionTree">("creation");
+  const [creationPrompt, setCreationPrompt] = useState(defaultCreationPrompt);
+  const [creationSeeds, setCreationSeeds] = useState<CreationSeed[]>(defaultCreationSeeds);
+  const [selectedCreationIds, setSelectedCreationIds] = useState<string[]>(() => defaultCreationSeeds.map((seed) => seed.id));
+  const [creationFilter, setCreationFilter] = useState<"全部" | CreationSeed["kind"]>("全部");
+  const [creationSettings, setCreationSettings] = useState<Record<string, string>>(() =>
+    Object.fromEntries(creationSettingRows.map((row) => [row.id, row.options[0]])),
+  );
   const [activeSession, setActiveSession] = useState<CollaborationSession | null>(null);
   const [collaborationSessions, setCollaborationSessions] = useState<CollaborationSession[]>([]);
   const [reviewSessionId, setReviewSessionId] = useState("");
@@ -445,6 +612,15 @@ function CreatePage() {
   const hasCreatorConflict = Boolean(activeProject.creatorClientId && activeProject.creatorClientId !== clientId);
   const canShareWorkspace = hasApiConnection() && !isShareViewer && !hasCreatorConflict;
   const shareButtonText = !hasApiConnection() ? "连接后端后可分享" : canShareWorkspace ? shareState : "创建者可分享";
+  const visibleCreationSeeds = useMemo(
+    () => creationSeeds.filter((seed) => creationFilter === "全部" || seed.kind === creationFilter),
+    [creationFilter, creationSeeds],
+  );
+  const selectedCreationSeeds = useMemo(
+    () => creationSeeds.filter((seed) => selectedCreationIds.includes(seed.id)),
+    [creationSeeds, selectedCreationIds],
+  );
+  const creationKinds = useMemo(() => Array.from(new Set(creationSeeds.map((seed) => seed.kind))), [creationSeeds]);
 
   useEffect(() => {
     writeStorage(STORAGE_KEYS.projects, projects);
@@ -652,6 +828,7 @@ function CreatePage() {
 
         const remoteVersions = remoteTasks.map(versionFromTask);
         setLibraryCount(remoteCards.length);
+        setLibraryCards(remoteCards);
         setVersions(remoteVersions);
         setActiveVersionId((current) => current || (remoteVersions[0]?.id ?? ""));
         writeStorage(STORAGE_KEYS.library, remoteCards);
@@ -897,11 +1074,96 @@ function CreatePage() {
     return id;
   }
 
+  function toggleCreationSeed(id: string) {
+    setSelectedCreationIds((current) => (current.includes(id) ? current.filter((seedId) => seedId !== id) : [...current, id]));
+  }
+
+  function handleAddCreationSeed() {
+    const librarySeed = libraryCards.map(cardToCreationSeed).find((seed) => !creationSeeds.some((current) => current.id === seed.id));
+    const nextSeed =
+      librarySeed ??
+      ({
+        id: `seed_story_${Date.now()}`,
+        kind: "故事卡",
+        title: "离开城市前的最后一晚",
+        description: "一个可扩写成主歌叙事的情节",
+        source: "来自 手动添加",
+        tone: "blue",
+      } satisfies CreationSeed);
+
+    setCreationSeeds((current) => [nextSeed, ...current]);
+    setSelectedCreationIds((current) => (current.includes(nextSeed.id) ? current : [nextSeed.id, ...current]));
+    addEvent("我", `添加灵感：${nextSeed.title}`);
+  }
+
+  function handlePromptChip(value: string) {
+    setCreationPrompt(value);
+  }
+
+  function updateCreationSetting(id: string, value: string) {
+    setCreationSettings((current) => ({
+      ...current,
+      [id]: value,
+    }));
+  }
+
+  function buildCreationSetupPrompt() {
+    const seedLines = selectedCreationSeeds.map((seed) => `- ${seed.kind}：${seed.title}（${seed.description}，${seed.source}）`);
+    const settingLines = creationSettingRows.map((row) => `- ${row.label}（${row.source}）：${creationSettings[row.id]}`);
+
+    return [
+      creationPrompt.trim(),
+      "",
+      "已选灵感：",
+      seedLines.length ? seedLines.join("\n") : "- 暂未选择灵感",
+      "",
+      "音乐基因设置：",
+      settingLines.join("\n"),
+    ].join("\n");
+  }
+
+  async function handleApplyCreationSetup(shouldGenerate: boolean) {
+    const promptForTask = buildCreationSetupPrompt();
+    const projectId = ensureProject(promptForTask);
+    setDraft(promptForTask);
+    setCreationModalOpen(false);
+    setMessages((current) => [
+      ...current,
+      {
+        id: `setup_${Date.now()}`,
+        role: "user",
+        label: "我",
+        text: `创作配置已更新：\n${promptForTask}`,
+      },
+    ]);
+    addEvent("我", shouldGenerate ? "提交创作配置并生成试听版" : "保存了创作配置草稿");
+
+    const nextBrief = await runAnalysis("manual", promptForTask, [], true, projectId);
+    if (!shouldGenerate) {
+      setAnalysisState("创作草稿已保存");
+      return;
+    }
+
+    const referenceBrief =
+      nextBrief ??
+      ({
+        source: "local",
+        title: summarizePrompt(promptForTask),
+        summary: "使用创作配置弹窗中的 prompt、灵感和音乐基因设置生成试听版。",
+        tags: analysisTags,
+        suggestedStyle: "未来都市流行 / 电子合成器 / 中速推进",
+        dataFlow: [],
+      } satisfies BriefResponse);
+
+    await createVersionForProject(projectId, promptForTask, referenceBrief);
+  }
+
   async function runAnalysis(
     reason: "auto" | "manual",
     prompt = currentPrompt,
     nextAttachments = attachments,
     appendMessage = reason === "manual",
+    projectIdOverride = activeProject.id || "draft",
   ) {
     if (!prompt.trim()) {
       setAnalysisState("等待输入");
@@ -914,7 +1176,7 @@ function CreatePage() {
 
     try {
       const nextBrief = await analyzeInspiration({
-        projectId: activeProject.id || "draft",
+        projectId: projectIdOverride,
         mode: inferMode(nextAttachments),
         content: prompt,
         attachments: nextAttachments.map(({ type, name, uploadId }) => ({ type, name, uploadId })),
@@ -1053,6 +1315,7 @@ function CreatePage() {
       const stored = readStorage<InspirationCard[]>(STORAGE_KEYS.library, []);
       writeStorage(STORAGE_KEYS.library, [card, ...stored]);
       setLibraryCount((count) => count + 1);
+      setLibraryCards((current) => [card, ...current]);
       setAnalysisState("已加入灵感库");
       addEvent("我", `保存灵感：${title}`);
       setMessages((current) => [
@@ -1069,26 +1332,7 @@ function CreatePage() {
     }
   }
 
-  async function handleGenerateVersion() {
-    if (!currentPrompt.trim() && !brief) {
-      setAnalysisState("先输入内容或上传附件");
-      return;
-    }
-
-    const promptForTask = currentPrompt || messages.map((message) => message.text).join("\n");
-    const projectId = ensureProject(promptForTask);
-
-    const referenceBrief =
-      brief ??
-      ({
-        source: "local",
-        title: activeProject.title || summarizePrompt(promptForTask),
-        summary: "使用当前对话内容生成新的版本任务。",
-        tags: analysisTags,
-        suggestedStyle: "都市流行 / 中慢速 / 轻鼓组",
-        dataFlow: [],
-      } satisfies BriefResponse);
-
+  async function createVersionForProject(projectId: string, promptForTask: string, referenceBrief: BriefResponse) {
     setAnalysisState("创建版本任务");
 
     try {
@@ -1137,6 +1381,29 @@ function CreatePage() {
     } catch {
       setAnalysisState("版本任务创建失败");
     }
+  }
+
+  async function handleGenerateVersion() {
+    if (!currentPrompt.trim() && !brief) {
+      setAnalysisState("先输入内容或上传附件");
+      return;
+    }
+
+    const promptForTask = currentPrompt || messages.map((message) => message.text).join("\n");
+    const projectId = ensureProject(promptForTask);
+
+    const referenceBrief =
+      brief ??
+      ({
+        source: "local",
+        title: activeProject.title || summarizePrompt(promptForTask),
+        summary: "使用当前对话内容生成新的版本任务。",
+        tags: analysisTags,
+        suggestedStyle: "都市流行 / 中慢速 / 轻鼓组",
+        dataFlow: [],
+      } satisfies BriefResponse);
+
+    await createVersionForProject(projectId, promptForTask, referenceBrief);
   }
 
   async function pollVersionTask(task: DemoTaskResponse, versionId: string) {
@@ -1437,10 +1704,16 @@ function CreatePage() {
                 <p>工作台</p>
                 <h2>{activeProject.title}</h2>
               </div>
-              <span className="status-pill">
-                {analysisState.includes("中") ? <Loader2 size={14} className="spin" /> : <Bot size={14} />}
-                {analysisState}
-              </span>
+              <div className="heading-actions">
+                <button className="setup-open-button" onClick={() => setCreationModalOpen(true)} type="button">
+                  <SlidersHorizontal size={14} />
+                  创作配置
+                </button>
+                <span className="status-pill">
+                  {analysisState.includes("中") ? <Loader2 size={14} className="spin" /> : <Bot size={14} />}
+                  {analysisState}
+                </span>
+              </div>
             </div>
 
             <div className="workbench-body">
@@ -1571,6 +1844,156 @@ function CreatePage() {
           </aside>
         </section>
       </section>
+
+      {creationModalOpen && (
+        <section className="creation-modal-layer" role="dialog" aria-modal="true" aria-label="创作配置弹窗">
+          <div className="creation-modal">
+            <header className="creation-modal-tabs">
+              <div className="tab-strip" role="tablist" aria-label="创作配置标签">
+                <button data-active={creationTab === "creation"} onClick={() => setCreationTab("creation")} role="tab" type="button">
+                  创作
+                </button>
+                <button data-active={creationTab === "versionTree"} onClick={() => setCreationTab("versionTree")} role="tab" type="button">
+                  版本树
+                </button>
+              </div>
+              <button className="modal-close-button" onClick={() => setCreationModalOpen(false)} type="button" aria-label="关闭创作配置">
+                <X size={18} />
+              </button>
+            </header>
+
+            <div className="creation-modal-head">
+              <h2>当前创作（基于 V1 原生版）</h2>
+              <div className="creation-modal-actions">
+                <button className="draft-button" onClick={() => void handleApplyCreationSetup(false)} type="button">
+                  <Check size={15} />
+                  保存草稿
+                </button>
+                <button className="generate-listen-button" onClick={() => void handleApplyCreationSetup(true)} type="button">
+                  <Headphones size={15} />
+                  生成试听版
+                </button>
+              </div>
+            </div>
+
+            {creationTab === "creation" ? (
+              <div className="creation-modal-grid">
+                <aside className="selected-seeds-panel" aria-label="已选灵感">
+                  <div className="selected-seeds-head">
+                    <h3>已选灵感（{selectedCreationIds.length}）</h3>
+                    <label>
+                      <select
+                        aria-label="筛选灵感类型"
+                        onChange={(event) => setCreationFilter(event.target.value as "全部" | CreationSeed["kind"])}
+                        value={creationFilter}
+                      >
+                        <option value="全部">全部</option>
+                        {creationKinds.map((kind) => (
+                          <option key={kind} value={kind}>
+                            {kind}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown size={14} />
+                    </label>
+                  </div>
+
+                  <div className="seed-list">
+                    {visibleCreationSeeds.map((seed) => {
+                      const Icon = getCreationSeedIcon(seed.kind);
+                      const selected = selectedCreationIds.includes(seed.id);
+                      return (
+                        <button className="seed-item" data-selected={selected} key={seed.id} onClick={() => toggleCreationSeed(seed.id)} type="button">
+                          <span className="seed-icon" data-tone={seed.tone}>
+                            <Icon size={18} />
+                          </span>
+                          <span className="seed-copy">
+                            <em>{seed.kind}</em>
+                            <strong>{seed.title}</strong>
+                            <small>{seed.description}</small>
+                          </span>
+                          <span className="seed-source">{seed.source}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <button className="add-seed-button" onClick={handleAddCreationSeed} type="button">
+                    <Plus size={17} />
+                    添加灵感
+                  </button>
+                </aside>
+
+                <section className="prompt-config-panel" aria-label="Prompt 与音乐基因设置">
+                  <div className="prompt-card">
+                    <h3>Prompt</h3>
+                    <div className="prompt-editor">
+                      <textarea
+                        aria-label="自定义 Prompt"
+                        maxLength={500}
+                        onChange={(event) => setCreationPrompt(event.target.value)}
+                        value={creationPrompt}
+                      />
+                      <span>{creationPrompt.length}/500</span>
+                    </div>
+                    <div className="prompt-chip-row" aria-label="Prompt 模板">
+                      {promptChips.map((chip) => (
+                        <button key={chip.label} onClick={() => handlePromptChip(chip.value)} type="button">
+                          {chip.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="music-gene-panel">
+                    <h3>音乐基因设置</h3>
+                    <div className="gene-setting-list">
+                      {creationSettingRows.map((row) => (
+                        <article className="gene-setting-row" key={row.id}>
+                          <div>
+                            <strong>{row.label}</strong>
+                            <span>（{row.source}）</span>
+                          </div>
+                          <label>
+                            <select
+                              aria-label={`${row.label}设置`}
+                              onChange={(event) => updateCreationSetting(row.id, event.target.value)}
+                              value={creationSettings[row.id]}
+                            >
+                              {row.options.map((option) => (
+                                <option key={option} value={option}>
+                                  {option}
+                                </option>
+                              ))}
+                            </select>
+                            <ChevronDown size={14} />
+                          </label>
+                        </article>
+                      ))}
+                    </div>
+                  </div>
+                </section>
+              </div>
+            ) : (
+              <section className="modal-version-tree" aria-label="版本树">
+                <div>
+                  <p>版本树</p>
+                  <h3>{visibleVersions.length ? "当前创作版本" : "还没有生成版本"}</h3>
+                </div>
+                <div className="version-tree-list">
+                  {(visibleVersions.length ? visibleVersions : [{ id: "draft_version", title: "V1 原生版", meta: "草稿基线", note: "保存 prompt 后可生成试听版", status: "当前基线", progress: 12 }]).map((version) => (
+                    <article key={version.id}>
+                      <span>{version.title}</span>
+                      <strong>{version.status}</strong>
+                      <p>{version.note}</p>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            )}
+          </div>
+        </section>
+      )}
     </main>
   );
 }
