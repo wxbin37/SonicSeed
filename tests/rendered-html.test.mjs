@@ -141,6 +141,8 @@ test("back-end calls MiniMax only through server-side configuration", async () =
   ]);
 
   assert.match(services, /MINIMAX_API_KEY/);
+  assert.match(services, /is_ascii_token/);
+  assert.match(services, /中文占位符/);
   assert.match(services, /\/v1\/music_generation/);
   assert.match(services, /output_format/);
   assert.match(services, /lyrics_optimizer/);

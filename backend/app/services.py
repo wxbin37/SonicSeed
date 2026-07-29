@@ -62,6 +62,15 @@ DEFAULT_MINIMAX_MUSIC_MODEL = "music-3.0-free"
 DEFAULT_MINIMAX_AUDIO_MODEL = "music-cover-free"
 
 
+def is_ascii_token(value: str) -> bool:
+    try:
+        value.encode("ascii")
+    except UnicodeEncodeError:
+        return False
+
+    return True
+
+
 def build_brief(payload: BriefRequest) -> BriefResponse:
     text = payload.content or "新的灵感素材"
     city_tone = any(keyword in text for keyword in ["城市", "出租车", "雨", "告别", "离开", "再见"])
@@ -245,6 +254,15 @@ def call_minimax_music(payload: DemoTaskRequest) -> DemoTaskResponse:
             taskId=f"task_{uuid4().hex[:10]}",
             status="failed",
             message="未配置 MINIMAX_API_KEY，后端没有调用音乐模型。",
+            progress=0,
+            lyrics=build_lyrics(payload.prompt, payload.lyrics),
+            provider="MiniMax",
+        )
+    if not is_ascii_token(api_key):
+        return DemoTaskResponse(
+            taskId=f"task_{uuid4().hex[:10]}",
+            status="failed",
+            message="MINIMAX_API_KEY 不是有效的 API Key，请检查是否仍是中文占位符或复制了说明文字。",
             progress=0,
             lyrics=build_lyrics(payload.prompt, payload.lyrics),
             provider="MiniMax",
