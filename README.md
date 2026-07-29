@@ -18,6 +18,14 @@ pnpm run dev
 pnpm run build
 ```
 
+## Netlify 部署
+
+项目已包含 `netlify.toml`，在 Netlify 导入 GitHub 仓库后使用以下设置：
+
+- Build command: `pnpm run build:netlify`
+- Publish directory: `.next`
+- Node version: `22`
+
 ## 设计约束
 
 页面严格按同目录 `design.md` 的 QQ 音乐移动端 token 落地：浅灰页面背景、实色白卡、品牌绿高亮、PingFang SC 字体栈、20px 大容器圆角、12px 间距节奏和柔和阴影。
