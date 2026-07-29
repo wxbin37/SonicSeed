@@ -43,6 +43,7 @@ from .storage import (
     upsert_project_record,
     utc_now_label,
 )
+from .upload_store import read_upload_bytes
 
 
 DATA_FLOW = [
@@ -58,6 +59,7 @@ DATA_FLOW = [
 
 DEFAULT_MINIMAX_BASE_URL = "https://api.minimaxi.com"
 DEFAULT_MINIMAX_MUSIC_MODEL = "music-3.0-free"
+DEFAULT_MINIMAX_AUDIO_MODEL = "music-cover-free"
 
 
 def build_brief(payload: BriefRequest) -> BriefResponse:
@@ -190,6 +192,18 @@ def build_music_prompt(payload: DemoTaskRequest) -> str:
     return prompt[:2000]
 
 
+def encode_first_audio_attachment(payload: DemoTaskRequest) -> str | None:
+    for attachment in payload.attachments:
+        if attachment.type != "audio" or not attachment.uploadId:
+            continue
+
+        body = read_upload_bytes(attachment.uploadId)
+        if body:
+            return base64.b64encode(body).decode("ascii")
+
+    return None
+
+
 def parse_minimax_audio(audio: object) -> str | None:
     if isinstance(audio, str) and audio.startswith(("https://", "http://")):
         return audio
@@ -237,8 +251,12 @@ def call_minimax_music(payload: DemoTaskRequest) -> DemoTaskResponse:
         )
 
     base_url = os.getenv("MINIMAX_BASE_URL", DEFAULT_MINIMAX_BASE_URL).rstrip("/")
-    model = os.getenv("MINIMAX_MUSIC_MODEL", DEFAULT_MINIMAX_MUSIC_MODEL)
     lyrics = build_lyrics(payload.prompt, payload.lyrics)
+    audio_base64 = encode_first_audio_attachment(payload)
+    model = os.getenv(
+        "MINIMAX_AUDIO_MODEL" if audio_base64 else "MINIMAX_MUSIC_MODEL",
+        DEFAULT_MINIMAX_AUDIO_MODEL if audio_base64 else DEFAULT_MINIMAX_MUSIC_MODEL,
+    )
     task_id = f"task_{uuid4().hex[:10]}"
     request_body: dict[str, object] = {
         "model": model,
@@ -256,6 +274,8 @@ def call_minimax_music(payload: DemoTaskRequest) -> DemoTaskResponse:
     }
     if payload.lyrics and payload.lyrics.strip():
         request_body["lyrics"] = payload.lyrics.strip()[:3500]
+    if audio_base64:
+        request_body["audio_base64"] = audio_base64
 
     try:
         response = httpx.post(

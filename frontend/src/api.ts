@@ -33,6 +33,7 @@ export type DemoTaskRequest = {
   prompt: string;
   referenceBrief: BriefResponse;
   lyrics?: string;
+  attachments?: BriefAttachment[];
 };
 
 export type DemoTaskResponse = {

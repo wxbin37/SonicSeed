@@ -112,6 +112,7 @@ type CreationSeed = {
   description: string;
   source: string;
   tone: "coral" | "mint" | "night" | "blue" | "rose" | "violet";
+  attachments: BriefAttachment[];
 };
 
 type CreationSetting = {
@@ -410,10 +411,11 @@ function cardToCreationSeed(card: InspirationCard): CreationSeed {
     description: card.content || card.tags[0]?.value || "来自灵感库的素材",
     source: "来自 灵感库",
     tone: kind === "氛围图" ? "night" : kind === "旋律卡" ? "mint" : "coral",
+    attachments: card.attachments,
   };
 }
 
-function inferMode(attachments: LocalAttachment[]): InputMode {
+function inferMode(attachments: BriefAttachment[]): InputMode {
   if (attachments.some((attachment) => attachment.type === "audio")) {
     return "humming";
   }
@@ -423,6 +425,23 @@ function inferMode(attachments: LocalAttachment[]): InputMode {
   }
 
   return "dialogue";
+}
+
+function toBriefAttachments(items: BriefAttachment[]): BriefAttachment[] {
+  return items.map(({ type, name, uploadId }) => ({ type, name, uploadId }));
+}
+
+function uniqueBriefAttachments(items: BriefAttachment[]): BriefAttachment[] {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    const key = item.uploadId ?? `${item.type}:${item.name}`;
+    if (seen.has(key)) {
+      return false;
+    }
+
+    seen.add(key);
+    return true;
+  });
 }
 
 function buildPrompt(text: string, attachments: LocalAttachment[]) {
@@ -1118,7 +1137,8 @@ function CreatePage() {
     ]);
     addEvent("我", shouldGenerate ? "提交创作配置并生成试听版" : "保存了创作配置草稿");
 
-    const nextBrief = await runAnalysis("manual", promptForTask, [], true, projectId);
+    const selectedAttachments = uniqueBriefAttachments(selectedCreationSeeds.flatMap((seed) => seed.attachments));
+    const nextBrief = await runAnalysis("manual", promptForTask, selectedAttachments, true, projectId);
     if (!shouldGenerate) {
       setAnalysisState("创作草稿已保存");
       return;
@@ -1135,13 +1155,13 @@ function CreatePage() {
         dataFlow: [],
       } satisfies BriefResponse);
 
-    await createVersionForProject(projectId, promptForTask, referenceBrief);
+    await createVersionForProject(projectId, promptForTask, referenceBrief, selectedAttachments);
   }
 
   async function runAnalysis(
     reason: "auto" | "manual",
     prompt = currentPrompt,
-    nextAttachments = attachments,
+    nextAttachments: BriefAttachment[] = attachments,
     appendMessage = reason === "manual",
     projectIdOverride = activeProject.id || "draft",
   ) {
@@ -1159,7 +1179,7 @@ function CreatePage() {
         projectId: projectIdOverride,
         mode: inferMode(nextAttachments),
         content: prompt,
-        attachments: nextAttachments.map(({ type, name, uploadId }) => ({ type, name, uploadId })),
+        attachments: toBriefAttachments(nextAttachments),
       });
 
       if (analysisRequestRef.current !== requestId) {
@@ -1289,7 +1309,7 @@ function CreatePage() {
         projectId,
         title,
         content: prompt,
-        attachments: attachments.map(({ type, name, uploadId }) => ({ type, name, uploadId })),
+        attachments: toBriefAttachments(attachments),
         tags: analysisTags,
       });
       const stored = readStorage<InspirationCard[]>(STORAGE_KEYS.library, []);
@@ -1312,7 +1332,7 @@ function CreatePage() {
     }
   }
 
-  async function createVersionForProject(projectId: string, promptForTask: string, referenceBrief: BriefResponse) {
+  async function createVersionForProject(projectId: string, promptForTask: string, referenceBrief: BriefResponse, taskAttachments: BriefAttachment[] = attachments) {
     setAnalysisState("创建版本任务");
 
     try {
@@ -1320,6 +1340,7 @@ function CreatePage() {
         projectId,
         prompt: promptForTask,
         referenceBrief,
+        attachments: uniqueBriefAttachments(toBriefAttachments(taskAttachments)),
       });
 
       const versionId = `version_${task.taskId}`;

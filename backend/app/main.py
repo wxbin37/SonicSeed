@@ -41,6 +41,7 @@ from .services import (
     save_project_workspace,
     upsert_project,
 )
+from .upload_store import save_upload_bytes
 
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 SUPPORTED_AUDIO_TYPES = {
@@ -179,9 +180,13 @@ async def upload_audio(file: UploadFile = File(...)) -> UploadResponse:
     if len(body) > MAX_UPLOAD_BYTES:
         raise HTTPException(status_code=413, detail="File is larger than 10 MB")
 
+    upload_id = f"upload_{uuid4().hex[:12]}"
+    filename = file.filename or "untitled-audio"
+    save_upload_bytes(upload_id, filename, content_type, body)
+
     return UploadResponse(
-        uploadId=f"upload_{uuid4().hex[:12]}",
-        filename=file.filename or "untitled-audio",
+        uploadId=upload_id,
+        filename=filename,
         contentType=content_type,
         sizeBytes=len(body),
         normalizedFormat="mp3",

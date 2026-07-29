@@ -139,6 +139,7 @@ class DemoTaskRequest(BaseModel):
     prompt: str = Field(default="", max_length=4000)
     referenceBrief: BriefResponse
     lyrics: Optional[str] = Field(default=None, max_length=3500)
+    attachments: list[BriefAttachment] = Field(default_factory=list, max_length=12)
 
 
 class DemoTaskResponse(BaseModel):

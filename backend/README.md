@@ -42,6 +42,7 @@ The backend stores product state in SQLite. Configure the file location with:
 
 ```text
 SONIC_SEED_DB_PATH=data/sonicseed.sqlite3
+SONIC_SEED_UPLOAD_DIR=data/uploads
 ```
 
 Core tables:
@@ -59,7 +60,10 @@ Music generation uses MiniMax from the backend only. Configure:
 MINIMAX_API_KEY=...
 MINIMAX_BASE_URL=https://api.minimaxi.com
 MINIMAX_MUSIC_MODEL=music-3.0-free
+MINIMAX_AUDIO_MODEL=music-cover-free
 ```
+
+Uploaded audio is stored under `SONIC_SEED_UPLOAD_DIR`; when `/api/demo-tasks` receives an audio attachment `uploadId`, the backend sends `audio_base64` to MiniMax and uses `MINIMAX_AUDIO_MODEL`. Text-only generation uses `MINIMAX_MUSIC_MODEL`.
 
 If `MINIMAX_API_KEY` is missing, `/api/demo-tasks` returns a failed task with generated lyrics context instead of pretending a demo was produced.
 

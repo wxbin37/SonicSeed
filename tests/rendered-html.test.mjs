@@ -60,6 +60,7 @@ test("front-end defines the requested product routes", async () => {
   assert.doesNotMatch(app, /source-toolbar/);
   assert.match(api, /VITE_API_BASE_URL/);
   assert.match(api, /uploadAudio/);
+  assert.match(api, /attachments\?: BriefAttachment\[\]/);
   assert.match(api, /getDemoTask/);
   assert.match(api, /listDemoTasks/);
   assert.match(api, /saveInspiration/);
@@ -71,10 +72,11 @@ test("front-end defines the requested product routes", async () => {
 });
 
 test("back-end exposes the split deployment API contract", async () => {
-  const [main, schemas, storage, requirements] = await Promise.all([
+  const [main, schemas, storage, uploadStore, requirements] = await Promise.all([
     readFile(new URL("../backend/app/main.py", import.meta.url), "utf8"),
     readFile(new URL("../backend/app/schemas.py", import.meta.url), "utf8"),
     readFile(new URL("../backend/app/storage.py", import.meta.url), "utf8"),
+    readFile(new URL("../backend/app/upload_store.py", import.meta.url), "utf8"),
     readFile(new URL("../backend/requirements.txt", import.meta.url), "utf8"),
   ]);
 
@@ -101,6 +103,7 @@ test("back-end exposes the split deployment API contract", async () => {
   assert.match(schemas, /"video"/);
   assert.match(schemas, /class InspirationCard/);
   assert.match(schemas, /class DemoTaskResponse/);
+  assert.match(schemas, /attachments: list\[BriefAttachment\]/);
   assert.match(schemas, /class ProjectWorkspaceResponse/);
   assert.match(schemas, /class ShareLinkResponse/);
   assert.match(schemas, /class CollaborationSessionResponse/);
@@ -111,6 +114,9 @@ test("back-end exposes the split deployment API contract", async () => {
   assert.match(schemas, /createdAt/);
   assert.match(storage, /import sqlite3/);
   assert.match(storage, /SONIC_SEED_DB_PATH/);
+  assert.match(uploadStore, /SONIC_SEED_UPLOAD_DIR/);
+  assert.match(uploadStore, /save_upload_bytes/);
+  assert.match(uploadStore, /read_upload_bytes/);
   assert.match(storage, /CREATE TABLE IF NOT EXISTS projects/);
   assert.match(storage, /CREATE TABLE IF NOT EXISTS project_workspaces/);
   assert.match(storage, /CREATE TABLE IF NOT EXISTS inspirations/);
@@ -139,6 +145,9 @@ test("back-end calls MiniMax only through server-side configuration", async () =
   assert.match(services, /output_format/);
   assert.match(services, /lyrics_optimizer/);
   assert.match(services, /is_instrumental/);
+  assert.match(services, /audio_base64/);
+  assert.match(services, /MINIMAX_AUDIO_MODEL/);
+  assert.match(services, /music-cover-free/);
   assert.match(services, /extract_minimax_lyrics/);
   assert.match(services, /generated_lyrics/);
   assert.match(services, /music-3\.0-free/);
@@ -146,6 +155,8 @@ test("back-end calls MiniMax only through server-side configuration", async () =
   assert.doesNotMatch(services, /fallback|mock|固定样例/i);
   assert.match(envExample, /MINIMAX_BASE_URL=https:\/\/api\.minimaxi\.com/);
   assert.match(envExample, /MINIMAX_MUSIC_MODEL=music-3\.0-free/);
+  assert.match(envExample, /MINIMAX_AUDIO_MODEL=music-cover-free/);
+  assert.match(envExample, /SONIC_SEED_UPLOAD_DIR=data\/uploads/);
 });
 
 test("uses split deployment settings and visual constraints", async () => {
