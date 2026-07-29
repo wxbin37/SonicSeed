@@ -18,6 +18,26 @@ test("front-end defines the requested product routes", async () => {
   assert.match(app, /工作台/);
   assert.match(app, /AI 分析后台/);
   assert.match(app, /Demo 成品区/);
+  assert.match(app, /搜索灵感、标签或项目/);
+  assert.match(app, /导航视图/);
+  assert.match(app, /图谱视图/);
+  assert.match(app, /融合并开始创作/);
+  assert.match(app, /图谱定位/);
+  assert.match(app, /核心意象/);
+  assert.match(app, /旋律特征/);
+  assert.match(app, /创作位置/);
+  assert.match(app, /使用方式/);
+  assert.match(app, /查看原始对话/);
+  assert.match(app, /展开详情/);
+  assert.match(app, /对话概括/);
+  assert.match(app, /showFullSummary/);
+  assert.match(app, /data-expanded/);
+  assert.match(app, /关联建议/);
+  assert.match(app, /所属项目/);
+  assert.match(app, /data-focused/);
+  assert.match(app, /scrollIntoView/);
+  assert.match(app, /当前灵感附近/);
+  assert.match(app, /inspirations=/);
   assert.match(api, /VITE_API_BASE_URL/);
 });
 
@@ -56,7 +76,7 @@ test("uses split deployment settings and visual constraints", async () => {
   assert.match(frontendPackage, /"vite"/);
   assert.match(frontendPackage, /"lucide-react"/);
   assert.doesNotMatch(rootPackage, /"next"|"vinext"|drizzle|wrangler/);
-  assert.doesNotMatch(css, /linear-gradient|backdrop-filter|glass/i);
+  assert.doesNotMatch(css, /gradient|backdrop-filter|glass/i);
   assert.match(css, /--background:\s*#0d0d0d/i);
   assert.match(css, /--button-highlight:\s*#00f285/i);
   assert.match(css, /@keyframes status-pulse/);

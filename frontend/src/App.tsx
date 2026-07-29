@@ -3,31 +3,42 @@ import type { LucideIcon } from "lucide-react";
 import {
   ArrowLeft,
   Bot,
+  Check,
   CheckCircle2,
+  ChevronDown,
   Clock3,
   Database,
+  Ellipsis,
+  FolderPlus,
   GitBranch,
   HardDrive,
   Headphones,
   Image as ImageIcon,
   Library,
+  LayoutGrid,
   Link2,
+  List,
   ListMusic,
   MessageCircle,
   Mic,
   Music2,
+  Network,
   Paperclip,
   Play,
   Plus,
   Radio,
   RefreshCw,
+  Search,
   Send,
   Server,
   Share2,
+  SlidersHorizontal,
+  Sparkles,
   Tags,
   Type,
   Upload,
   UsersRound,
+  X,
 } from "lucide-react";
 import {
   analyzeInspiration,
@@ -62,6 +73,37 @@ type DemoVersion = {
   note: string;
   status: string;
 };
+
+type InspirationKind = "歌词句" | "哼唱" | "旋律" | "故事" | "图片" | "环境声音" | "创作反馈" | "Demo";
+
+type Inspiration = {
+  id: string;
+  kind: InspirationKind;
+  title: string;
+  excerpt: string;
+  tags: string[];
+  theme: string;
+  emotion: string;
+  scene: string;
+  genre: string;
+  status: "待发展" | "已关联" | "已用于 Demo";
+  project: string;
+  relations: number;
+  updatedDays: number;
+  duration?: string;
+  coreImagery?: string;
+  melodyFeatures?: string;
+  creationPosition?: string;
+  usage?: string;
+  originalContent?: string;
+  originalDialogue?: string[];
+  dialogueSummary?: string;
+  relationSuggestion?: string;
+  icon: LucideIcon;
+};
+
+type LibraryView = "navigation" | "graph";
+type LibraryLayout = "grid" | "list";
 
 const inputSources: InputSource[] = [
   {
@@ -204,36 +246,202 @@ const initialDemos: DemoVersion[] = [
   },
 ];
 
-const libraryCards = [
+const inspirations: Inspiration[] = [
   {
-    type: "旋律",
-    title: "凌晨副歌哼唱01",
-    meta: "BPM 76 · A小调 · Hook",
-    status: "可进入编曲",
+    id: "morning-hook",
+    kind: "哼唱",
+    title: "清晨副歌哼唱 01",
+    excerpt: "一段向上抬升后突然留白的副歌旋律，第二遍可以增加高音爆发。",
+    tags: ["哼唱", "短句 Hook", "中慢速", "副歌"],
+    theme: "重逢",
+    emotion: "释然",
+    scene: "清晨",
+    genre: "流行",
+    status: "待发展",
+    project: "离开城市之前",
+    relations: 3,
+    updatedDays: 0,
+    duration: "0:32",
+    coreImagery: "晨光、空车厢、逐渐远去的站台",
+    melodyFeatures: "上行短句 Hook、高音爆发、节奏记忆点",
+    creationPosition: "副歌 / 高潮",
+    usage: "核心素材、保留旋律",
+    originalContent: "一段 32 秒的清唱录音，第二遍旋律比第一遍高一个发展层级。",
+    originalDialogue: ["我想先记下这个副歌，像是忍了很久之后终于说出口。", "已保留原始录音，建议将第二遍上行旋律作为副歌高潮。"],
+    relationSuggestion: "适合与「把告别说得像明天还会见」组合成副歌。",
     icon: Music2,
   },
   {
-    type: "歌词",
-    title: "像明天还会见",
-    meta: "告别 · 城市夜晚 · 主歌结尾",
-    status: "待发展",
+    id: "tomorrow-line",
+    kind: "歌词句",
+    title: "把告别说得像明天还会见",
+    excerpt: "我们把告别说得像明天还会见。",
+    tags: ["歌词句", "告别", "克制", "Hook"],
+    theme: "告别",
+    emotion: "克制",
+    scene: "车站",
+    genre: "流行",
+    status: "已关联",
+    project: "离开城市之前",
+    relations: 4,
+    updatedDays: 1,
+    coreImagery: "车票、站台、没有说出口的再见",
+    creationPosition: "副歌 Hook / 主歌结尾",
+    usage: "核心素材、保留原文、允许扩写",
+    originalContent: "我们把告别说得像明天还会见。",
+    originalDialogue: ["这句话先不要润色，我想保留那种故作轻松的感觉。", "原句已锁定，可围绕“明天还会见”扩写前后两句。"],
+    dialogueSummary: "创作者希望保留原句故作轻松的告别感，不做润色，并围绕“明天还会见”扩写副歌前后两句。",
+    relationSuggestion: "和「清晨副歌哼唱 01」主题一致，可作为旋律落点。",
     icon: Type,
   },
   {
-    type: "画面",
-    title: "雨夜出租车照片",
-    meta: "霓虹 · 离开深圳 · 克制",
-    status: "已关联 Demo",
+    id: "taxi-window",
+    kind: "图片",
+    title: "出租车窗上的雨",
+    excerpt: "霓虹在车窗水痕里断开，远处是最后一次路过的街口。",
+    tags: ["图片", "雨夜", "霓虹灯", "孤独"],
+    theme: "告别",
+    emotion: "孤独",
+    scene: "雨夜",
+    genre: "电子",
+    status: "已关联",
+    project: "雨夜出租车 Demo",
+    relations: 3,
+    updatedDays: 2,
+    coreImagery: "雨、霓虹灯、车窗倒影、空街",
+    creationPosition: "视觉参考 / Intro",
+    usage: "参考素材、提取情绪",
+    originalContent: "一张雨夜车窗照片，画面主体是被水痕切开的绿色霓虹。",
+    relationSuggestion: "可与站台环境声共同建立城市夜晚的开场氛围。",
     icon: ImageIcon,
   },
   {
-    type: "声音",
-    title: "风噪与站台广播",
-    meta: "现场采样 · Intro 参考",
-    status: "待清理",
+    id: "station-ambience",
+    kind: "环境声音",
+    title: "末班车站台广播",
+    excerpt: "列车进站前的风噪、提示音和一段模糊的人声广播。",
+    tags: ["环境声音", "车站", "开场", "参考素材"],
+    theme: "离开",
+    emotion: "遗憾",
+    scene: "车站",
+    genre: "民谣",
+    status: "待发展",
+    project: "站台采样 Intro",
+    relations: 2,
+    updatedDays: 5,
+    duration: "0:47",
+    coreImagery: "末班车、提示灯、空站台",
+    melodyFeatures: "广播提示音形成三音节动机，风噪可作节奏底纹",
+    creationPosition: "开场 / 过渡",
+    usage: "参考素材、提取环境声",
+    originalContent: "47 秒现场录音，包含列车进站风噪、提示音和一段模糊广播。",
+    relationSuggestion: "建议清理低频后加入 Demo V1 的前八小节。",
     icon: Radio,
   },
+  {
+    id: "last-goodnight",
+    kind: "歌词句",
+    title: "最后一句晚安",
+    excerpt: "把所有的遗憾留给最后一句晚安。",
+    tags: ["歌词句", "遗憾", "深夜", "收束"],
+    theme: "告别",
+    emotion: "遗憾",
+    scene: "卧室",
+    genre: "R&B",
+    status: "待发展",
+    project: "凌晨副歌接力",
+    relations: 2,
+    updatedDays: 8,
+    coreImagery: "床头灯、未发送的消息、凌晨时钟",
+    creationPosition: "收束 / 尾句",
+    usage: "保留原文、参考素材",
+    originalContent: "把所有的遗憾留给最后一句晚安。",
+    originalDialogue: ["想把它放在最后一句，唱完以后伴奏直接停掉。"],
+    dialogueSummary: "这条灵感来自结尾设计讨论：最后一句唱完后让伴奏直接停止，用突然的安静放大遗憾。",
+    relationSuggestion: "与告别主题素材高度相似，可作为第二版结尾分支。",
+    icon: Type,
+  },
+  {
+    id: "leave-story",
+    kind: "故事",
+    title: "离开城市的那天",
+    excerpt: "地铁口的风很大，我们各自往不同方向走，谁也没有回头。",
+    tags: ["故事", "城市", "离开", "回忆"],
+    theme: "告别",
+    emotion: "克制",
+    scene: "街道",
+    genre: "民谣",
+    status: "已关联",
+    project: "离开城市之前",
+    relations: 4,
+    updatedDays: 12,
+    coreImagery: "地铁口、逆向人群、被风吹动的衣角",
+    creationPosition: "主歌叙事 / 转折",
+    usage: "提取情绪、允许扩写",
+    originalContent: "离开那天，地铁口的风很大。我们各自往不同的方向走去，谁也没有回头。",
+    originalDialogue: ["这是一个真实片段，但不用写得太具体。", "可以保留地铁口和逆向行走两个动作，弱化人物身份。"],
+    dialogueSummary: "灵感来自一段真实离别经历。创作时保留地铁口、风和两个人逆向行走的动作，同时弱化人物身份与具体背景。",
+    relationSuggestion: "可补足「把告别说得像明天还会见」之前的主歌叙事。",
+    icon: MessageCircle,
+  },
+  {
+    id: "demo-v1",
+    kind: "Demo",
+    title: "离开城市之前 V1",
+    excerpt: "钢琴与电子氛围的第一版编曲，副歌鼓组需要继续收敛。",
+    tags: ["Demo", "都市流行", "保留原文", "过渡"],
+    theme: "告别",
+    emotion: "释放",
+    scene: "城市夜晚",
+    genre: "流行",
+    status: "已用于 Demo",
+    project: "离开城市之前",
+    relations: 5,
+    updatedDays: 15,
+    duration: "1:12",
+    coreImagery: "城市远景、车流、逐渐熄灭的灯",
+    melodyFeatures: "76 BPM、A 小调、副歌长线条、段末留白",
+    creationPosition: "完整 Demo",
+    usage: "版本基底、保留旋律、继续演化",
+    originalContent: "钢琴与电子氛围编曲，主歌保持近距离人声，副歌加入宽阔铺底。",
+    relationSuggestion: "已融合 5 条灵感，下一版建议吸收副歌留白反馈。",
+    icon: Play,
+  },
+  {
+    id: "hook-feedback",
+    kind: "创作反馈",
+    title: "副歌需要留出呼吸",
+    excerpt: "第二句以后不要立刻铺满，让主唱的尾音和环境声多停留两拍。",
+    tags: ["创作反馈", "副歌", "留白", "参考素材"],
+    theme: "成长",
+    emotion: "热烈",
+    scene: "舞台",
+    genre: "摇滚",
+    status: "已用于 Demo",
+    project: "凌晨副歌接力",
+    relations: 2,
+    updatedDays: 24,
+    creationPosition: "副歌 / 过渡",
+    usage: "创作约束、版本修改",
+    originalContent: "第二句以后不要立刻铺满，让主唱的尾音和环境声多停留两拍。",
+    originalDialogue: ["现在副歌太满了，听不到歌词最后几个字。", "建议第二句尾部减少鼓组和铺底，让人声尾音多停留两拍。"],
+    dialogueSummary: "试听 Demo 后发现副歌编曲过满，歌词尾字不清楚，因此建议第二句后减少鼓组和铺底，给人声尾音留出两拍空间。",
+    relationSuggestion: "适用于「离开城市之前 V1」的下一条版本分支。",
+    icon: MessageCircle,
+  },
 ];
+
+const graphLinks = [
+  ["tomorrow-line", "morning-hook"],
+  ["tomorrow-line", "taxi-window"],
+  ["tomorrow-line", "last-goodnight"],
+  ["tomorrow-line", "leave-story"],
+  ["morning-hook", "demo-v1"],
+  ["taxi-window", "demo-v1"],
+  ["station-ambience", "demo-v1"],
+  ["leave-story", "station-ambience"],
+  ["demo-v1", "hook-feedback"],
+] as const;
 
 function HomePage() {
   return (
@@ -256,9 +464,23 @@ function HomePage() {
 }
 
 function CreatePage() {
+  const selectedInspirations = useMemo(() => {
+    const selectedIds = new URLSearchParams(window.location.search)
+      .get("inspirations")
+      ?.split(",")
+      .filter(Boolean);
+
+    return selectedIds?.length
+      ? inspirations.filter((inspiration) => selectedIds.includes(inspiration.id))
+      : [];
+  }, []);
   const [activeMode, setActiveMode] = useState<InputMode>("humming");
   const [activeProjectId, setActiveProjectId] = useState(projects[0].id);
-  const [draft, setDraft] = useState("我们把告别说得像明天还会见。");
+  const [draft, setDraft] = useState(() =>
+    selectedInspirations.length
+      ? `请融合这些灵感继续创作：${selectedInspirations.map((item) => item.title).join("、")}。`
+      : "我们把告别说得像明天还会见。",
+  );
   const [analysisTags, setAnalysisTags] = useState<AnalysisTag[]>(initialTags);
   const [brief, setBrief] = useState<BriefResponse | null>(null);
   const [analysisState, setAnalysisState] = useState("等待输入");
@@ -397,6 +619,20 @@ function CreatePage() {
                 {analysisState}
               </span>
             </div>
+
+            {selectedInspirations.length > 0 && (
+              <section className="selected-context" aria-label="已带入的灵感">
+                <span>
+                  <Sparkles size={15} />
+                  已带入 {selectedInspirations.length} 条灵感
+                </span>
+                <div>
+                  {selectedInspirations.map((item) => (
+                    <span key={item.id}>{item.title}</span>
+                  ))}
+                </div>
+              </section>
+            )}
 
             <div className="chat-window" aria-label="创作对话">
               <article className="chat-message user">
@@ -545,47 +781,555 @@ function CreatePage() {
   );
 }
 
+const filterGroups = [
+  { id: "theme", label: "主题", options: ["全部主题", "告别", "成长", "重逢", "离开"] },
+  { id: "emotion", label: "情绪", options: ["全部情绪", "克制", "遗憾", "释然", "孤独", "释放", "热烈"] },
+  { id: "scene", label: "场景", options: ["全部场景", "雨夜", "车站", "卧室", "街道", "舞台", "清晨"] },
+  { id: "genre", label: "曲风", options: ["全部曲风", "流行", "民谣", "R&B", "摇滚", "电子"] },
+  { id: "status", label: "状态", options: ["全部状态", "待发展", "已关联", "已用于 Demo"] },
+  { id: "time", label: "时间", options: ["全部时间", "今天", "7 天内", "30 天内"] },
+] as const;
+
+const graphPositions: Record<string, { x: number; y: number }> = {
+  "tomorrow-line": { x: 48, y: 43 },
+  "morning-hook": { x: 17, y: 28 },
+  "taxi-window": { x: 77, y: 21 },
+  "station-ambience": { x: 17, y: 69 },
+  "last-goodnight": { x: 81, y: 51 },
+  "leave-story": { x: 39, y: 73 },
+  "demo-v1": { x: 64, y: 76 },
+  "hook-feedback": { x: 88, y: 82 },
+};
+
+function InspirationPreview({ inspiration }: { inspiration: Inspiration }) {
+  const [showFullSummary, setShowFullSummary] = useState(false);
+
+  if (inspiration.kind === "图片") {
+    return (
+      <div className="inspiration-preview image-preview" aria-hidden="true">
+        <ImageIcon size={30} />
+        <span />
+        <span />
+        <span />
+      </div>
+    );
+  }
+
+  if (inspiration.duration) {
+    return (
+      <div className="inspiration-preview audio-preview" aria-label={`音频时长 ${inspiration.duration}`}>
+        {inspiration.kind === "Demo" && (
+          <span className="mini-play">
+            <Play size={15} />
+          </span>
+        )}
+        <span className="waveform" aria-hidden="true">
+          {[8, 18, 12, 26, 20, 34, 17, 24, 11, 29, 19, 36, 16, 25, 9, 21, 14, 28].map((height, index) => (
+            <i key={`${height}-${index}`} style={{ height }} />
+          ))}
+        </span>
+        <small>{inspiration.duration}</small>
+      </div>
+    );
+  }
+
+  if (inspiration.dialogueSummary) {
+    const canExpand = inspiration.dialogueSummary.length > 46;
+    return (
+      <div
+        className="inspiration-preview dialogue-summary-preview"
+        data-expanded={showFullSummary}
+      >
+        <span className="dialogue-summary-label">
+          <MessageCircle size={14} />
+          对话概括
+        </span>
+        <p>{inspiration.dialogueSummary}</p>
+        {canExpand && (
+          <button
+            aria-expanded={showFullSummary}
+            aria-label={`${showFullSummary ? "收起" : "展开"}${inspiration.title}的对话概括`}
+            onClick={(event) => {
+              event.stopPropagation();
+              setShowFullSummary((current) => !current);
+            }}
+            type="button"
+          >
+            {showFullSummary ? "收起" : "展开"}
+            <ChevronDown size={13} />
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  return null;
+}
+
+function InspirationCard({
+  inspiration,
+  selected,
+  layout,
+  onToggle,
+  onFocusGraph,
+}: {
+  inspiration: Inspiration;
+  selected: boolean;
+  layout: LibraryLayout;
+  onToggle: () => void;
+  onFocusGraph: () => void;
+}) {
+  const Icon = inspiration.icon;
+  const [showDetails, setShowDetails] = useState(false);
+  const [showOriginalDialogue, setShowOriginalDialogue] = useState(false);
+  const profileFields = [
+    ["核心主题", inspiration.theme],
+    ["情绪", inspiration.emotion],
+    ["场景", inspiration.scene],
+    ["核心意象", inspiration.coreImagery],
+    ["曲风", inspiration.genre],
+    ["旋律特征", inspiration.melodyFeatures],
+    ["创作位置", inspiration.creationPosition],
+    ["使用方式", inspiration.usage],
+  ].filter((field): field is [string, string] => Boolean(field[1]));
+
+  return (
+    <article
+      className="inspiration-card"
+      data-expanded={showDetails}
+      data-inspiration-id={inspiration.id}
+      data-layout={layout}
+      data-selected={selected}
+      onClick={onToggle}
+    >
+      <div className="inspiration-card-heading">
+        <span className="kind-icon">
+          <Icon size={19} />
+        </span>
+        <div>
+          <p><span>灵感类型</span>{inspiration.kind}</p>
+          <h3>{inspiration.title}</h3>
+        </div>
+        <button
+          aria-label={selected ? `取消选择${inspiration.title}` : `选择${inspiration.title}`}
+          aria-pressed={selected}
+          className="selection-indicator"
+          onClick={(event) => {
+            event.stopPropagation();
+            onToggle();
+          }}
+          type="button"
+        >
+          {selected ? <Check size={16} /> : null}
+        </button>
+      </div>
+
+      <InspirationPreview inspiration={inspiration} />
+
+      {inspiration.excerpt && (
+        <section className="inspiration-section inspiration-overview">
+          <span className="section-label">概况</span>
+          <p>{inspiration.excerpt}</p>
+          <div className="overview-actions">
+            <button
+              className="graph-jump-button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onFocusGraph();
+              }}
+              type="button"
+            >
+              <Network size={14} />
+              图谱定位
+            </button>
+            <button
+              aria-expanded={showDetails}
+              className="details-toggle"
+              onClick={(event) => {
+                event.stopPropagation();
+                setShowDetails((current) => {
+                  if (current) setShowOriginalDialogue(false);
+                  return !current;
+                });
+              }}
+              type="button"
+            >
+              {showDetails ? "收起详情" : "展开详情"}
+              <ChevronDown size={15} />
+            </button>
+          </div>
+        </section>
+      )}
+
+      {showDetails && (
+        <div className="inspiration-details">
+          {profileFields.length > 0 && (
+            <dl className="inspiration-profile" aria-label="创作画像">
+              {profileFields.map(([label, value]) => (
+                <div key={label}>
+                  <dt>{label}</dt>
+                  <dd>{value}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
+
+          {(inspiration.originalContent || inspiration.originalDialogue?.length) && (
+            <section className="inspiration-section original-section">
+              <span className="section-label">原始内容</span>
+              {inspiration.originalContent && <p>{inspiration.originalContent}</p>}
+              {inspiration.originalDialogue?.length ? (
+                <>
+                  <button
+                    aria-expanded={showOriginalDialogue}
+                    className="dialogue-toggle"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setShowOriginalDialogue((current) => !current);
+                    }}
+                    type="button"
+                  >
+                    <MessageCircle size={14} />
+                    {showOriginalDialogue ? "收起原始对话" : "查看原始对话"}
+                    <ChevronDown size={14} />
+                  </button>
+                  {showOriginalDialogue && (
+                    <div className="original-dialogue" onClick={(event) => event.stopPropagation()}>
+                      {inspiration.originalDialogue.map((message, index) => (
+                        <p data-speaker={index % 2 === 0 ? "user" : "ai"} key={message}>
+                          <span>{index % 2 === 0 ? "我" : "AI"}</span>
+                          {message}
+                        </p>
+                      ))}
+                    </div>
+                  )}
+                </>
+              ) : null}
+            </section>
+          )}
+
+          {(inspiration.relationSuggestion || inspiration.project || inspiration.status) && (
+            <section className="inspiration-section relation-section">
+              {inspiration.relationSuggestion && (
+                <div>
+                  <span className="section-label">关联建议</span>
+                  <p>{inspiration.relationSuggestion}</p>
+                </div>
+              )}
+              {(inspiration.project || inspiration.status) && (
+                <dl>
+                  {inspiration.project && (
+                    <div><dt>所属项目</dt><dd>{inspiration.project}</dd></div>
+                  )}
+                  {inspiration.status && (
+                    <div><dt>状态</dt><dd data-status={inspiration.status}>{inspiration.status}</dd></div>
+                  )}
+                </dl>
+              )}
+            </section>
+          )}
+
+          <div className="inspiration-tags" aria-label="灵感标签">
+            {inspiration.tags.map((tag, index) => (
+              <span data-primary={index === 0} key={tag}>{tag}</span>
+            ))}
+          </div>
+
+          <footer className="inspiration-card-footer">
+            <span>关联 {inspiration.relations} 条</span>
+            <button
+              className="card-more-button"
+              aria-label={`${inspiration.title}更多操作`}
+              onClick={(event) => event.stopPropagation()}
+              type="button"
+            >
+              <Ellipsis size={18} />
+            </button>
+          </footer>
+        </div>
+      )}
+    </article>
+  );
+}
+
 function LibraryPage() {
+  const [view, setView] = useState<LibraryView>("navigation");
+  const [layout, setLayout] = useState<LibraryLayout>("grid");
+  const [query, setQuery] = useState("");
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [focusedGraphId, setFocusedGraphId] = useState<string | null>(null);
+  const [filters, setFilters] = useState<Record<string, string>>({});
+  const [relationMode, setRelationMode] = useState("主题");
+  const [actionMessage, setActionMessage] = useState("");
+
+  const filteredInspirations = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+
+    return inspirations.filter((item) => {
+      const matchesQuery =
+        !normalizedQuery ||
+        [item.title, item.excerpt, item.project, item.kind, ...item.tags]
+          .join(" ")
+          .toLowerCase()
+          .includes(normalizedQuery);
+      const matchesTheme = !filters.theme || item.theme === filters.theme;
+      const matchesEmotion = !filters.emotion || item.emotion === filters.emotion;
+      const matchesScene = !filters.scene || item.scene === filters.scene;
+      const matchesGenre = !filters.genre || item.genre === filters.genre;
+      const matchesStatus = !filters.status || item.status === filters.status;
+      const matchesTime =
+        !filters.time ||
+        (filters.time === "今天" && item.updatedDays === 0) ||
+        (filters.time === "7 天内" && item.updatedDays <= 7) ||
+        (filters.time === "30 天内" && item.updatedDays <= 30);
+
+      return matchesQuery && matchesTheme && matchesEmotion && matchesScene && matchesGenre && matchesStatus && matchesTime;
+    });
+  }, [filters, query]);
+
+  const visibleGraphItems = useMemo(() => {
+    const graphRoots = focusedGraphId ? [...selectedIds, focusedGraphId] : selectedIds;
+    if (relationMode !== "当前灵感附近" || graphRoots.length === 0) {
+      return filteredInspirations;
+    }
+
+    const nearby = new Set(graphRoots);
+    graphLinks.forEach(([source, target]) => {
+      if (nearby.has(source)) nearby.add(target);
+      if (nearby.has(target)) nearby.add(source);
+    });
+    return filteredInspirations.filter((item) => nearby.has(item.id));
+  }, [filteredInspirations, focusedGraphId, relationMode, selectedIds]);
+
+  const visibleGraphIds = new Set(visibleGraphItems.map((item) => item.id));
+  const selectedInspirations = inspirations.filter((item) => selectedIds.includes(item.id));
+  const createHref = `/create?inspirations=${selectedIds.join(",")}`;
+
+  function toggleSelection(id: string) {
+    setSelectedIds((current) =>
+      current.includes(id) ? current.filter((item) => item !== id) : [...current, id],
+    );
+    setActionMessage("");
+  }
+
+  function updateFilter(id: string, value: string) {
+    setFilters((current) => ({ ...current, [id]: value.startsWith("全部") ? "" : value }));
+  }
+
+  function showRelations() {
+    setView("graph");
+    setRelationMode("当前灵感附近");
+    setActionMessage("已在图谱中聚焦所选灵感及其关系");
+  }
+
+  function focusInGraph(id: string) {
+    setFocusedGraphId(id);
+    setView("graph");
+    setRelationMode("当前灵感附近");
+    window.setTimeout(() => {
+      document.querySelector(`[data-node-id="${id}"]`)?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }, 0);
+  }
+
   return (
     <main className="library-shell" aria-label="灵感库">
-      <header className="studio-topbar">
+      <header className="studio-topbar library-topbar">
         <a className="icon-link" href="/" aria-label="返回首页">
           <ArrowLeft size={19} />
         </a>
-        <h1>灵感库</h1>
+        <div>
+          <p>创作历史</p>
+          <h1>灵感库</h1>
+        </div>
         <a className="icon-link" href="/create" aria-label="开始创作">
           <Play size={18} />
         </a>
       </header>
 
-      <section className="library-hero">
-        <div>
-          <p>个人音乐基因库</p>
-          <h2>128 条灵感，42 条已建立关系，9 个可播放 Demo。</h2>
+      <section className="library-controls" aria-label="灵感库工具栏">
+        <div className="library-search">
+          <Search size={18} />
+          <input
+            aria-label="搜索灵感、标签或项目"
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="搜索灵感、标签或项目..."
+            type="search"
+            value={query}
+          />
+          {query && (
+            <button aria-label="清空搜索" onClick={() => setQuery("")} type="button">
+              <X size={16} />
+            </button>
+          )}
         </div>
-        <div className="tag-cluster">
-          {["告别", "R&B", "城市夜晚", "Hook", "雨夜"].map((tag) => (
-            <span key={tag}>
-              <Tags size={12} />
-              {tag}
-            </span>
+
+        <div className="view-switcher" aria-label="视图切换">
+          <button data-active={view === "navigation"} onClick={() => setView("navigation")} type="button">
+            <LayoutGrid size={17} />
+            导航视图
+          </button>
+          <button data-active={view === "graph"} onClick={() => setView("graph")} type="button">
+            <Network size={17} />
+            图谱视图
+          </button>
+        </div>
+
+        <div className="filter-row">
+          {filterGroups.map((group) => (
+            <label className="filter-select" data-active={Boolean(filters[group.id])} key={group.id}>
+              <span>{filters[group.id] || group.label}</span>
+              <select
+                aria-label={`按${group.label}筛选`}
+                onChange={(event) => updateFilter(group.id, event.target.value)}
+                value={filters[group.id] || group.options[0]}
+              >
+                {group.options.map((option) => <option key={option}>{option}</option>)}
+              </select>
+              <ChevronDown size={14} />
+            </label>
           ))}
+
+          {Object.values(filters).some(Boolean) && (
+            <button className="clear-filters" onClick={() => setFilters({})} type="button">
+              <X size={14} />
+              清除筛选
+            </button>
+          )}
+
+          {view === "navigation" && (
+            <div className="layout-switcher" aria-label="卡片布局">
+              <button aria-label="网格布局" data-active={layout === "grid"} onClick={() => setLayout("grid")} type="button">
+                <LayoutGrid size={17} />
+              </button>
+              <button aria-label="列表布局" data-active={layout === "list"} onClick={() => setLayout("list")} type="button">
+                <List size={18} />
+              </button>
+            </div>
+          )}
         </div>
       </section>
 
-      <section className="library-grid">
-        {libraryCards.map(({ type, title, meta, status, icon: Icon }) => (
-          <article className="library-tile" key={title}>
-            <span className="tile-icon">
-              <Icon size={21} />
-            </span>
-            <p>{type}</p>
-            <h3>{title}</h3>
-            <span>{meta}</span>
-            <strong>{status}</strong>
-          </article>
-        ))}
+      <section className="library-summary">
+        <div>
+          <strong>{filteredInspirations.length}</strong>
+          <span>条灵感</span>
+          <span className="summary-divider" />
+          <span>{inspirations.reduce((total, item) => total + item.relations, 0)} 条关系</span>
+        </div>
+        <span>{selectedIds.length ? `已选择 ${selectedIds.length} 条，可继续融合创作` : "选择灵感，发现新的创作组合"}</span>
       </section>
+
+      {view === "navigation" ? (
+        <section className="inspiration-grid" data-layout={layout} aria-label="灵感导航视图">
+          {filteredInspirations.map((inspiration) => (
+            <InspirationCard
+              inspiration={inspiration}
+              key={inspiration.id}
+              layout={layout}
+              onFocusGraph={() => focusInGraph(inspiration.id)}
+              onToggle={() => toggleSelection(inspiration.id)}
+              selected={selectedIds.includes(inspiration.id)}
+            />
+          ))}
+          {filteredInspirations.length === 0 && (
+            <div className="library-empty">
+              <Search size={24} />
+              <strong>没有匹配的灵感</strong>
+              <span>调整搜索词或清除部分筛选条件</span>
+            </div>
+          )}
+        </section>
+      ) : (
+        <section className="graph-panel" aria-label="灵感图谱视图">
+          <div className="graph-toolbar">
+            <div>
+              {["主题", "情绪", "项目", "当前灵感附近"].map((mode) => (
+                <button data-active={relationMode === mode} key={mode} onClick={() => setRelationMode(mode)} type="button">
+                  {mode === "主题" ? "按主题" : mode === "情绪" ? "按情绪" : mode === "项目" ? "按项目" : mode}
+                </button>
+              ))}
+            </div>
+            <span><SlidersHorizontal size={15} /> 节点大小表示关联度</span>
+          </div>
+
+          <div className="graph-canvas">
+            <svg aria-hidden="true" className="graph-links" preserveAspectRatio="none" viewBox="0 0 100 100">
+              {graphLinks.map(([source, target], index) => {
+                if (!visibleGraphIds.has(source) || !visibleGraphIds.has(target)) return null;
+                const sourceItem = inspirations.find((item) => item.id === source);
+                const targetItem = inspirations.find((item) => item.id === target);
+                const matchesRelation =
+                  relationMode === "当前灵感附近" ||
+                  (relationMode === "主题" && sourceItem?.theme === targetItem?.theme) ||
+                  (relationMode === "情绪" && sourceItem?.emotion === targetItem?.emotion) ||
+                  (relationMode === "项目" && sourceItem?.project === targetItem?.project);
+                if (!matchesRelation) return null;
+                const start = graphPositions[source];
+                const end = graphPositions[target];
+                return (
+                  <line
+                    className={index % 3 === 0 ? "confirmed" : "suggested"}
+                    key={`${source}-${target}`}
+                    x1={start.x}
+                    x2={end.x}
+                    y1={start.y}
+                    y2={end.y}
+                  />
+                );
+              })}
+            </svg>
+
+            {visibleGraphItems.map((item) => {
+              const Icon = item.icon;
+              const position = graphPositions[item.id];
+              const nodeSize = 62 + Math.min(item.relations, 5) * 7;
+              return (
+                <button
+                  aria-current={focusedGraphId === item.id ? "true" : undefined}
+                  aria-pressed={selectedIds.includes(item.id)}
+                  className="graph-node"
+                  data-focused={focusedGraphId === item.id}
+                  data-node-id={item.id}
+                  data-selected={selectedIds.includes(item.id)}
+                  key={item.id}
+                  onClick={() => toggleSelection(item.id)}
+                  style={{ left: `${position.x}%`, top: `${position.y}%`, width: nodeSize, height: nodeSize }}
+                  type="button"
+                >
+                  <Icon size={19} />
+                  <span>{item.title}</span>
+                </button>
+              );
+            })}
+
+            <div className="graph-legend">
+              <span><i className="solid" /> 已确认关联</span>
+              <span><i className="dashed" /> AI 潜在关联</span>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {selectedIds.length > 0 && (
+        <aside className="selection-bar" aria-label="已选灵感操作">
+          <div className="selection-details">
+            <button aria-label="清空选择" onClick={() => setSelectedIds([])} type="button"><X size={17} /></button>
+            <div>
+              <strong>已选 {selectedIds.length} 条灵感</strong>
+              <span>{selectedInspirations.map((item) => item.title).join(" · ")}</span>
+            </div>
+          </div>
+          {actionMessage && <span className="action-message">{actionMessage}</span>}
+          <div className="selection-actions">
+            <button onClick={showRelations} type="button"><Network size={16} />建立关联</button>
+            <button onClick={() => setActionMessage("已加入项目「离开城市之前」")} type="button"><FolderPlus size={16} />加入项目</button>
+            <a href={createHref}><Sparkles size={16} />融合并开始创作</a>
+          </div>
+        </aside>
+      )}
     </main>
   );
 }
