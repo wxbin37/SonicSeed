@@ -119,6 +119,8 @@ export type InspirationCard = {
   createdAt: string;
 };
 
+export type InspirationRecord = InspirationCard;
+
 export type InspirationCreateRequest = {
   projectId: string;
   title: string;
