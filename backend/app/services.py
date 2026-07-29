@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import base64
+import binascii
 import os
 from uuid import uuid4
 
@@ -53,6 +55,9 @@ DATA_FLOW = [
     "数据库与音频存储",
     "分享页",
 ]
+
+DEFAULT_MINIMAX_BASE_URL = "https://api.minimaxi.com"
+DEFAULT_MINIMAX_MUSIC_MODEL = "music-3.0-free"
 
 
 def build_brief(payload: BriefRequest) -> BriefResponse:
@@ -185,6 +190,22 @@ def build_music_prompt(payload: DemoTaskRequest) -> str:
     return prompt[:2000]
 
 
+def parse_minimax_audio(audio: object) -> str | None:
+    if isinstance(audio, str) and audio.startswith(("https://", "http://")):
+        return audio
+
+    if not isinstance(audio, str) or not audio:
+        return None
+
+    try:
+        audio_bytes = bytes.fromhex(audio)
+    except (TypeError, ValueError, binascii.Error):
+        return None
+
+    encoded_audio = base64.b64encode(audio_bytes).decode("ascii")
+    return f"data:audio/mpeg;base64,{encoded_audio}"
+
+
 def call_minimax_music(payload: DemoTaskRequest) -> DemoTaskResponse:
     api_key = os.getenv("MINIMAX_API_KEY", "").strip()
     if not api_key:
@@ -197,14 +218,15 @@ def call_minimax_music(payload: DemoTaskRequest) -> DemoTaskResponse:
             provider="MiniMax",
         )
 
-    base_url = os.getenv("MINIMAX_BASE_URL", "https://api.minimaxi.com").rstrip("/")
-    model = os.getenv("MINIMAX_MUSIC_MODEL", "music-3.0")
+    base_url = os.getenv("MINIMAX_BASE_URL", DEFAULT_MINIMAX_BASE_URL).rstrip("/")
+    model = os.getenv("MINIMAX_MUSIC_MODEL", DEFAULT_MINIMAX_MUSIC_MODEL)
     lyrics = build_lyrics(payload.prompt, payload.lyrics)
     task_id = f"task_{uuid4().hex[:10]}"
-    request_body = {
+    request_body: dict[str, object] = {
         "model": model,
         "prompt": build_music_prompt(payload),
-        "lyrics": lyrics,
+        "lyrics_optimizer": True,
+        "is_instrumental": False,
         "output_format": "url",
         "stream": False,
         "audio_setting": {
@@ -213,6 +235,8 @@ def call_minimax_music(payload: DemoTaskRequest) -> DemoTaskResponse:
             "format": "mp3",
         },
     }
+    if payload.lyrics and payload.lyrics.strip():
+        request_body["lyrics"] = payload.lyrics.strip()[:3500]
 
     try:
         response = httpx.post(
@@ -222,7 +246,7 @@ def call_minimax_music(payload: DemoTaskRequest) -> DemoTaskResponse:
                 "Authorization": f"Bearer {api_key}",
                 "Content-Type": "application/json",
             },
-            timeout=120,
+            timeout=float(os.getenv("MINIMAX_TIMEOUT_SECONDS", "300")),
         )
         response.raise_for_status()
         result = response.json()
@@ -248,12 +272,12 @@ def call_minimax_music(payload: DemoTaskRequest) -> DemoTaskResponse:
             traceId=result.get("trace_id"),
         )
 
-    audio_url = (result.get("data") or {}).get("audio")
+    audio_url = parse_minimax_audio((result.get("data") or {}).get("audio"))
     if not audio_url:
         return DemoTaskResponse(
             taskId=task_id,
             status="failed",
-            message="MiniMax 未返回音频地址。",
+            message="MiniMax 未返回可播放音频。",
             progress=0,
             lyrics=lyrics,
             provider="MiniMax",

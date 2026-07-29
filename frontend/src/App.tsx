@@ -117,7 +117,6 @@ type CreationSeed = {
 type CreationSetting = {
   id: string;
   label: string;
-  source: string;
   options: string[];
 };
 
@@ -131,57 +130,6 @@ const initialMessages: ChatMessage[] = [
 ];
 
 const defaultCreationPrompt = "保留原有歌词和主旋律，加入电子合成器元素，节奏偏中速，前半段氛围克制，副歌部分情绪上升，整体风格偏未来都市感。";
-
-const defaultCreationSeeds: CreationSeed[] = [
-  {
-    id: "seed_lyric_city_light",
-    kind: "歌词卡",
-    title: "城市的灯火在远方等我...",
-    description: "一句适合主歌结尾的城市告别歌词",
-    source: "来自 我",
-    tone: "coral",
-  },
-  {
-    id: "seed_melody_walker",
-    kind: "旋律卡",
-    title: "夜行者_主旋律_01",
-    description: "偏克制的主旋律动机",
-    source: "来自 我",
-    tone: "mint",
-  },
-  {
-    id: "seed_scene_rain",
-    kind: "氛围图",
-    title: "雨夜街道",
-    description: "霓虹、雨面、夜间出租车",
-    source: "来自 我",
-    tone: "night",
-  },
-  {
-    id: "seed_synth_hook",
-    kind: "旋律卡",
-    title: "合成器旋律片段",
-    description: "适合副歌上扬的合成器动机",
-    source: "来自 Bobby",
-    tone: "blue",
-  },
-  {
-    id: "seed_emotion",
-    kind: "情绪卡",
-    title: "孤独 / 坚定 / 希望",
-    description: "从压抑到释放的情绪走向",
-    source: "来自 Lily",
-    tone: "rose",
-  },
-  {
-    id: "seed_beat",
-    kind: "节奏卡",
-    title: "电子鼓点 128BPM",
-    description: "中速推进，鼓组留白",
-    source: "来自 AI 生成",
-    tone: "violet",
-  },
-];
 
 const promptChips = [
   {
@@ -202,31 +150,26 @@ const creationSettingRows: CreationSetting[] = [
   {
     id: "lyric",
     label: "核心歌词",
-    source: "城市的灯火在远方等我...",
     options: ["锁定", "允许微调", "仅提取意象"],
   },
   {
     id: "melody",
     label: "主旋律",
-    source: "夜行者_主旋律_01",
     options: ["参考，不强制", "锁定主旋律", "只保留轮廓"],
   },
   {
     id: "newMelody",
     label: "新增旋律",
-    source: "合成器旋律片段",
     options: ["核心", "参考", "不使用"],
   },
   {
     id: "arrangement",
     label: "编曲风格",
-    source: "未来都市感",
     options: ["允许AI自由生成", "电子流行", "钢琴与电子氛围"],
   },
   {
     id: "emotion",
     label: "情绪氛围",
-    source: "孤独 / 坚定 / 希望",
     options: ["仅提取情绪", "作为核心情绪", "允许重新创作"],
   },
 ];
@@ -557,8 +500,7 @@ function CreatePage() {
   const [creationModalOpen, setCreationModalOpen] = useState(false);
   const [creationTab, setCreationTab] = useState<"creation" | "versionTree">("creation");
   const [creationPrompt, setCreationPrompt] = useState(defaultCreationPrompt);
-  const [creationSeeds, setCreationSeeds] = useState<CreationSeed[]>(defaultCreationSeeds);
-  const [selectedCreationIds, setSelectedCreationIds] = useState<string[]>(() => defaultCreationSeeds.map((seed) => seed.id));
+  const [selectedCreationIds, setSelectedCreationIds] = useState<string[]>([]);
   const [creationFilter, setCreationFilter] = useState<"全部" | CreationSeed["kind"]>("全部");
   const [creationSettings, setCreationSettings] = useState<Record<string, string>>(() =>
     Object.fromEntries(creationSettingRows.map((row) => [row.id, row.options[0]])),
@@ -571,6 +513,7 @@ function CreatePage() {
   const sessionSyncRef = useRef("");
   const projectWorkspaceSyncRef = useRef("");
   const newProjectRef = useRef("");
+  const creationSelectionInitializedRef = useRef(false);
   const [loadedWorkspaceProjectId, setLoadedWorkspaceProjectId] = useState("");
 
   const activeProject = useMemo(
@@ -612,6 +555,7 @@ function CreatePage() {
   const hasCreatorConflict = Boolean(activeProject.creatorClientId && activeProject.creatorClientId !== clientId);
   const canShareWorkspace = hasApiConnection() && !isShareViewer && !hasCreatorConflict;
   const shareButtonText = !hasApiConnection() ? "连接后端后可分享" : canShareWorkspace ? shareState : "创建者可分享";
+  const creationSeeds = useMemo(() => libraryCards.map(cardToCreationSeed), [libraryCards]);
   const visibleCreationSeeds = useMemo(
     () => creationSeeds.filter((seed) => creationFilter === "全部" || seed.kind === creationFilter),
     [creationFilter, creationSeeds],
@@ -640,6 +584,19 @@ function CreatePage() {
   useEffect(() => {
     writeStorage(STORAGE_KEYS.versions, versions);
   }, [versions]);
+
+  useEffect(() => {
+    const availableIds = new Set(creationSeeds.map((seed) => seed.id));
+    setSelectedCreationIds((current) => {
+      const retained = current.filter((id) => availableIds.has(id));
+      if (!creationSelectionInitializedRef.current && creationSeeds.length) {
+        creationSelectionInitializedRef.current = true;
+        return creationSeeds.map((seed) => seed.id);
+      }
+
+      return retained;
+    });
+  }, [creationSeeds]);
 
   useEffect(() => {
     if (!activeVersion && activeVersionId) {
@@ -1078,22 +1035,24 @@ function CreatePage() {
     setSelectedCreationIds((current) => (current.includes(id) ? current.filter((seedId) => seedId !== id) : [...current, id]));
   }
 
-  function handleAddCreationSeed() {
-    const librarySeed = libraryCards.map(cardToCreationSeed).find((seed) => !creationSeeds.some((current) => current.id === seed.id));
-    const nextSeed =
-      librarySeed ??
-      ({
-        id: `seed_story_${Date.now()}`,
-        kind: "故事卡",
-        title: "离开城市前的最后一晚",
-        description: "一个可扩写成主歌叙事的情节",
-        source: "来自 手动添加",
-        tone: "blue",
-      } satisfies CreationSeed);
+  async function handleAddCreationSeed() {
+    try {
+      const cards = hasApiConnection() ? await listInspirations() : readStorage<InspirationCard[]>(STORAGE_KEYS.library, []);
+      setLibraryCards(cards);
+      setLibraryCount(cards.length);
+      writeStorage(STORAGE_KEYS.library, cards);
 
-    setCreationSeeds((current) => [nextSeed, ...current]);
-    setSelectedCreationIds((current) => (current.includes(nextSeed.id) ? current : [nextSeed.id, ...current]));
-    addEvent("我", `添加灵感：${nextSeed.title}`);
+      if (!cards.length) {
+        setAnalysisState("暂无可加入的灵感记录");
+        return;
+      }
+
+      const nextIds = cards.map((card) => `library_${card.id}`);
+      setSelectedCreationIds((current) => Array.from(new Set([...current, ...nextIds])));
+      addEvent("我", `载入 ${cards.length} 条灵感记录`);
+    } catch {
+      setAnalysisState("灵感库读取失败");
+    }
   }
 
   function handlePromptChip(value: string) {
@@ -1107,9 +1066,30 @@ function CreatePage() {
     }));
   }
 
+  function getCreationSettingSource(id: string) {
+    const lyricSeed = selectedCreationSeeds.find((seed) => seed.kind === "歌词卡" || seed.kind === "故事卡");
+    const melodySeed = selectedCreationSeeds.find((seed) => seed.kind === "旋律卡");
+    const sceneSeed = selectedCreationSeeds.find((seed) => seed.kind === "氛围图");
+    const emotionSeed = selectedCreationSeeds.find((seed) => seed.kind === "情绪卡");
+
+    if (id === "lyric") {
+      return lyricSeed?.title ?? "未选择歌词灵感";
+    }
+
+    if (id === "melody" || id === "newMelody") {
+      return melodySeed?.title ?? "未选择旋律灵感";
+    }
+
+    if (id === "emotion") {
+      return emotionSeed?.title ?? sceneSeed?.title ?? "未选择情绪灵感";
+    }
+
+    return sceneSeed?.title ?? selectedCreationSeeds[0]?.title ?? "未选择参考灵感";
+  }
+
   function buildCreationSetupPrompt() {
     const seedLines = selectedCreationSeeds.map((seed) => `- ${seed.kind}：${seed.title}（${seed.description}，${seed.source}）`);
-    const settingLines = creationSettingRows.map((row) => `- ${row.label}（${row.source}）：${creationSettings[row.id]}`);
+    const settingLines = creationSettingRows.map((row) => `- ${row.label}（${getCreationSettingSource(row.id)}）：${creationSettings[row.id]}`);
 
     return [
       creationPrompt.trim(),
@@ -1899,26 +1879,34 @@ function CreatePage() {
                   </div>
 
                   <div className="seed-list">
-                    {visibleCreationSeeds.map((seed) => {
-                      const Icon = getCreationSeedIcon(seed.kind);
-                      const selected = selectedCreationIds.includes(seed.id);
-                      return (
-                        <button className="seed-item" data-selected={selected} key={seed.id} onClick={() => toggleCreationSeed(seed.id)} type="button">
-                          <span className="seed-icon" data-tone={seed.tone}>
-                            <Icon size={18} />
-                          </span>
-                          <span className="seed-copy">
-                            <em>{seed.kind}</em>
-                            <strong>{seed.title}</strong>
-                            <small>{seed.description}</small>
-                          </span>
-                          <span className="seed-source">{seed.source}</span>
-                        </button>
-                      );
-                    })}
+                    {visibleCreationSeeds.length ? (
+                      visibleCreationSeeds.map((seed) => {
+                        const Icon = getCreationSeedIcon(seed.kind);
+                        const selected = selectedCreationIds.includes(seed.id);
+                        return (
+                          <button className="seed-item" data-selected={selected} key={seed.id} onClick={() => toggleCreationSeed(seed.id)} type="button">
+                            <span className="seed-icon" data-tone={seed.tone}>
+                              <Icon size={18} />
+                            </span>
+                            <span className="seed-copy">
+                              <em>{seed.kind}</em>
+                              <strong>{seed.title}</strong>
+                              <small>{seed.description}</small>
+                            </span>
+                            <span className="seed-source">{seed.source}</span>
+                          </button>
+                        );
+                      })
+                    ) : (
+                      <article className="seed-empty-state">
+                        <Library size={18} />
+                        <strong>暂无灵感记录</strong>
+                        <p>先在工作台发送内容并加入灵感库，再回到这里选择素材。</p>
+                      </article>
+                    )}
                   </div>
 
-                  <button className="add-seed-button" onClick={handleAddCreationSeed} type="button">
+                  <button className="add-seed-button" onClick={() => void handleAddCreationSeed()} type="button">
                     <Plus size={17} />
                     添加灵感
                   </button>
@@ -1952,7 +1940,7 @@ function CreatePage() {
                         <article className="gene-setting-row" key={row.id}>
                           <div>
                             <strong>{row.label}</strong>
-                            <span>（{row.source}）</span>
+                            <span>（{getCreationSettingSource(row.id)}）</span>
                           </div>
                           <label>
                             <select

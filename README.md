@@ -185,7 +185,7 @@ backend/.env.example
 ```text
 MINIMAX_API_KEY=...
 MINIMAX_BASE_URL=https://api.minimaxi.com
-MINIMAX_MUSIC_MODEL=music-3.0
+MINIMAX_MUSIC_MODEL=music-3.0-free
 ```
 
 MiniMax 返回的 URL 有有效期，生产环境需要把音频保存到 COS / OSS / S3 等对象存储，再把持久地址写入数据库。

@@ -1081,6 +1081,31 @@ h3 {
   gap: var(--space-200);
 }
 
+.seed-empty-state {
+  display: grid;
+  gap: var(--space-200);
+  min-height: 148px;
+  align-content: center;
+  justify-items: start;
+  border: 1px solid var(--divider);
+  border-radius: var(--corner-s);
+  padding: var(--space-300);
+  background: var(--mask);
+  color: var(--text-300);
+}
+
+.seed-empty-state strong {
+  color: var(--text-500);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.seed-empty-state p {
+  color: var(--text-300);
+  font-size: 12px;
+  line-height: 16px;
+}
+
 .seed-item {
   display: grid;
   grid-template-columns: 42px minmax(0, 1fr) auto;

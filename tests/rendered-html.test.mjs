@@ -24,6 +24,9 @@ test("front-end defines the requested product routes", async () => {
   assert.match(app, /音乐基因设置/);
   assert.match(app, /handleApplyCreationSetup/);
   assert.match(app, /toggleCreationSeed/);
+  assert.match(app, /libraryCards\.map\(cardToCreationSeed\)/);
+  assert.match(app, /暂无灵感记录/);
+  assert.doesNotMatch(app, /defaultCreationSeeds/);
   assert.match(app, /创作版本/);
   assert.match(app, /生成试听版/);
   assert.match(app, /版本树/);
@@ -134,11 +137,13 @@ test("back-end calls MiniMax only through server-side configuration", async () =
   assert.match(services, /MINIMAX_API_KEY/);
   assert.match(services, /\/v1\/music_generation/);
   assert.match(services, /output_format/);
-  assert.match(services, /music-3\.0/);
+  assert.match(services, /lyrics_optimizer/);
+  assert.match(services, /is_instrumental/);
+  assert.match(services, /music-3\.0-free/);
   assert.match(services, /未配置 MINIMAX_API_KEY/);
   assert.doesNotMatch(services, /fallback|mock|固定样例/i);
   assert.match(envExample, /MINIMAX_BASE_URL=https:\/\/api\.minimaxi\.com/);
-  assert.match(envExample, /MINIMAX_MUSIC_MODEL=music-3\.0/);
+  assert.match(envExample, /MINIMAX_MUSIC_MODEL=music-3\.0-free/);
 });
 
 test("uses split deployment settings and visual constraints", async () => {

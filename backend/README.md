@@ -58,7 +58,9 @@ Music generation uses MiniMax from the backend only. Configure:
 ```text
 MINIMAX_API_KEY=...
 MINIMAX_BASE_URL=https://api.minimaxi.com
-MINIMAX_MUSIC_MODEL=music-3.0
+MINIMAX_MUSIC_MODEL=music-3.0-free
 ```
 
 If `MINIMAX_API_KEY` is missing, `/api/demo-tasks` returns a failed task with generated lyrics context instead of pretending a demo was produced.
+
+You can run `python script/test_minimax_music.py --mode text` inside `backend/` to smoke-test the MiniMax API shape without touching the frontend.
