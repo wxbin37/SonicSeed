@@ -1066,7 +1066,7 @@ function CreatePage() {
     () =>
       projects.find((project) => project.id === activeProjectId) ?? {
         id: "",
-        title: "新的创作",
+        title: "创作工作台",
         subtitle: "输入内容后会创建历史",
         status: "未保存",
         progress: 0,
@@ -1398,12 +1398,15 @@ function CreatePage() {
   }
 
   function ensureProject(prompt = currentPrompt) {
+    const nextTitle = prompt ? summarizePrompt(prompt) : "创作工作台";
+
     if (activeProjectId) {
       setProjects((current) =>
         current.map((project) =>
           project.id === activeProjectId
             ? {
                 ...project,
+                title: project.title.startsWith("未命名创作") || project.title === "新的创作" || project.title === "创作工作台" ? nextTitle : project.title,
                 subtitle: prompt ? summarizePrompt(prompt) : project.subtitle,
                 updated: nowLabel(),
                 creatorClientId: project.creatorClientId ?? clientId,
@@ -1415,10 +1418,9 @@ function CreatePage() {
     }
 
     const id = `project_${Date.now()}`;
-    const title = summarizePrompt(prompt);
     const nextProject: Project = {
       id,
-      title,
+      title: nextTitle,
       subtitle: prompt ? "来自当前对话" : "新的创作",
       status: "创作中",
       progress: 12,
@@ -1996,7 +1998,7 @@ function CreatePage() {
     const id = `project_${Date.now()}`;
     const nextProject: Project = {
       id,
-      title: `未命名创作 ${projects.length + 1}`,
+      title: "创作工作台",
       subtitle: "等待第一条灵感",
       status: "新建协作空间",
       progress: 6,
@@ -2068,7 +2070,7 @@ function CreatePage() {
         <a className="icon-link" href="/" aria-label="返回首页">
           <ArrowLeft size={19} />
         </a>
-        <h1>创作工作台</h1>
+        <h1>{activeProject.title}</h1>
         <div className="topbar-actions">
           <button
             className="icon-button"
