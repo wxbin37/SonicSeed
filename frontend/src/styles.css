@@ -4103,11 +4103,16 @@ h3 {
   }
 
   .selection-bar {
-    right: var(--space-300);
-    bottom: calc(var(--tabbar-height) + var(--safe-bottom) + var(--space-300));
-    left: var(--space-300);
+    right: 0;
+    bottom: 0;
+    left: 0;
     gap: var(--space-300);
     padding: var(--space-300);
+    padding-bottom: calc(var(--space-300) + var(--safe-bottom));
+    border-right: 0;
+    border-bottom: 0;
+    border-left: 0;
+    border-radius: var(--corner-default) var(--corner-default) 0 0;
   }
 
   .selection-details {
