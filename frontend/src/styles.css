@@ -2106,9 +2106,25 @@ h3 {
 }
 
 .analysis-panel {
-  display: flex;
+  display: none;
   flex-direction: column;
   gap: var(--space-300);
+}
+
+/* 手机版布局：实时标签展示在内容下方 */
+@media (max-width: 899px) {
+  .analysis-panel {
+    display: flex;
+    max-height: none;
+    overflow: visible;
+  }
+}
+
+.analysis-empty {
+  color: var(--text-400);
+  font-size: 12px;
+  line-height: 18px;
+  padding: var(--space-200) 0;
 }
 
 .analysis-dot {

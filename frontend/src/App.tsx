@@ -1458,7 +1458,10 @@ function CreatePage() {
   }
 
   async function handleApplyCreationSetup(shouldGenerate: boolean) {
-    const promptForTask = buildCreationSetupPrompt();
+    // 生成音频时带上之前的多轮对话：配置内容在前，历史对话在后
+    const promptForTask = [buildCreationSetupPrompt(), ...messages.map((message) => message.text)]
+      .filter((text) => text && text.trim())
+      .join("\n");
     const projectId = ensureProject(promptForTask);
     setDraft("");
     setCreationModalOpen(false);
@@ -1769,7 +1772,10 @@ function CreatePage() {
       return;
     }
 
-    const promptForTask = currentPrompt || messages.map((message) => message.text).join("\n");
+    // 生成音频时带上之前的多轮对话：当前输入在前，历史对话在后（后端截断时优先保留最新需求）
+    const promptForTask = [currentPrompt, ...messages.map((message) => message.text)]
+      .filter((text) => text && text.trim())
+      .join("\n");
     const projectId = ensureProject(promptForTask);
 
     const referenceBrief =
@@ -2225,6 +2231,29 @@ function CreatePage() {
 
             </div>
           </section>
+
+          <aside className="analysis-panel" aria-label="实时标签分析">
+            <div className="panel-heading compact">
+              <p>实时分析</p>
+              <span className="status-pill">
+                <span className="analysis-dot" />
+                {analysisState}
+              </span>
+            </div>
+            <div className="analysis-list">
+              {analysisTags.length === 0 ? (
+                <p className="analysis-empty">发送内容后，这里会实时生成主题 / 情绪 / 场景 / 适用位置标签。</p>
+              ) : (
+                analysisTags.map((tag) => (
+                  <div className="analysis-item" key={tag.label}>
+                    <span>{tag.label}</span>
+                    <strong>{tag.value}</strong>
+                    <p>{tag.detail}</p>
+                  </div>
+                ))
+              )}
+            </div>
+          </aside>
         </section>
       </section>
 

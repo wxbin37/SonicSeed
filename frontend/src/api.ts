@@ -138,7 +138,31 @@ export type UploadResponse = {
   nextStep: string;
 };
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "";
+function resolveApiBaseUrl(): string {
+  const configured = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "");
+  if (configured) {
+    try {
+      const url = new URL(configured);
+      const pageHost = typeof window !== "undefined" ? window.location.hostname : "";
+      const isLocalConfig = url.hostname === "localhost" || url.hostname === "127.0.0.1";
+      const isPageLocal = !pageHost || pageHost === "localhost" || pageHost === "127.0.0.1";
+      // 配置写的是 localhost，但页面在局域网 / 其他主机打开时，后端跟随页面主机，保证手机可访问
+      if (isLocalConfig && !isPageLocal) {
+        const port = url.port || "8000";
+        return `${url.protocol}//${pageHost}:${port}`;
+      }
+      return configured;
+    } catch {
+      return configured;
+    }
+  }
+  if (typeof window !== "undefined") {
+    return `${window.location.protocol}//${window.location.hostname}:8000`;
+  }
+  return "";
+}
+
+const API_BASE_URL = resolveApiBaseUrl();
 
 export function hasApiConnection() {
   return Boolean(API_BASE_URL);

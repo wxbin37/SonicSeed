@@ -70,19 +70,11 @@ app = FastAPI(
     description="Python backend for AI inspiration analysis, demo tasks, and collaboration state.",
 )
 
-cors_origins = [
-    origin.strip()
-    for origin in os.getenv(
-        "CORS_ORIGINS",
-        "http://localhost:3000,http://localhost:3010,http://localhost:3011,http://localhost:3012,http://localhost:8888,http://127.0.0.1:3012",
-    ).split(",")
-    if origin.strip()
-]
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=cors_origins,
-    allow_credentials=True,
+    # 前端所有请求均不带 credentials，放行所有来源以便局域网 / 手机访问
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
