@@ -275,7 +275,7 @@ def demo_task_from_row(row: sqlite3.Row) -> DemoTaskResponse:
         provider=row["provider"],
         traceId=row["trace_id"],
         createdAt=row["created_at"],
-        customName=row.get("custom_name"),
+        customName=row["custom_name"],
     )
 
 

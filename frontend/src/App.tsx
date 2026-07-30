@@ -56,6 +56,7 @@ import {
   getApiConnectionLabel,
   getCommunityPost,
   getDemoTask,
+  getProjectWorkspace,
   hasApiConnection,
   listCommunityPosts,
   listDemoTasks,
@@ -321,8 +322,8 @@ const inspirations: Inspiration[] = [
     creationPosition: "副歌 Hook / 主歌结尾",
     usage: "核心素材、保留原文、允许扩写",
     originalContent: "我们把告别说得像明天还会见。",
-    originalDialogue: ["这句话先不要润色，我想保留那种故作轻松的感觉。", "原句已锁定，可围绕“明天还会见”扩写前后两句。"],
-    dialogueSummary: "创作者希望保留原句故作轻松的告别感，不做润色，并围绕“明天还会见”扩写副歌前后两句。",
+    originalDialogue: ["这句话先不要润色，我想保留那种故作轻松的感觉。", "原句已锁定，可围绕"明天还会见"扩写前后两句。"],
+    dialogueSummary: "创作者希望保留原句故作轻松的告别感，不做润色，并围绕"明天还会见"扩写副歌前后两句。",
     relationSuggestion: "和「清晨副歌哼唱 01」主题一致，可作为旋律落点。",
     icon: Type,
   },
@@ -1005,6 +1006,7 @@ function CreatePage() {
   const [shareName, setShareName] = useState("");
   const [shareDesc, setShareDesc] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
+  const [projectHasConversation, setProjectHasConversation] = useState(false);
   const [selectedInspirations, setSelectedInspirations] = useState<InspirationCard[]>(cachedSelectedInspirations);
   const [draft, setDraft] = useState(() =>
     cachedSelectedInspirations.length
@@ -1217,47 +1219,32 @@ function CreatePage() {
     }
 
     setLoadedWorkspaceProjectId("");
-    projectWorkspaceSyncRef.current = "";
-    setAnalysisState("正在恢复完整对话");
+    // 关闭"进入项目自动恢复对话"：每次进入都从空白聊天框开始
+    resetWorkbenchForProject();
+    // 把同步标记置为当前（空白）状态，避免下方自动保存把已存的旧对话覆盖成空
+    projectWorkspaceSyncRef.current = JSON.stringify({
+      projectId: activeProject.id,
+      clientId,
+      snapshot: buildWorkbenchSnapshot(),
+    });
 
-    if (!hasApiConnection()) {
-      const localWorkspaces = readStorage<Record<string, WorkbenchSnapshot>>(STORAGE_KEYS.workspaces, {});
-      const localWorkspace = localWorkspaces[activeProject.id];
-      if (localWorkspace) {
-        applyWorkbenchSnapshot(localWorkspace as Record<string, unknown>, "已恢复完整对话");
-      } else {
-        resetWorkbenchForProject();
-      }
-      setLoadedWorkspaceProjectId(activeProject.id);
-      return;
+    // 探测该项目是否曾有过对话：有则隐藏"今天想写什么声音?"占位（仅全新项目显示）
+    const localWorkspaces = readStorage<Record<string, WorkbenchSnapshot>>(STORAGE_KEYS.workspaces, {});
+    const localSnapshot = localWorkspaces[activeProject.id] as WorkbenchSnapshot | undefined;
+    setProjectHasConversation(Array.isArray(localSnapshot?.messages) && localSnapshot!.messages.length > 0);
+
+    if (hasApiConnection()) {
+      void getProjectWorkspace(activeProject.id)
+        .then((workspace) => {
+          const remoteMessages = (workspace?.workbench?.messages as ChatMessage[] | undefined) ?? [];
+          if (remoteMessages.length > 0) {
+            setProjectHasConversation(true);
+          }
+        })
+        .catch(() => {});
     }
 
-    let cancelled = false;
-
-    void getProjectWorkspace(activeProject.id)
-      .then((workspace) => {
-        if (cancelled) {
-          return;
-        }
-
-        if (workspace && Object.keys(workspace.workbench).length) {
-          applyWorkbenchSnapshot(workspace.workbench, "已恢复完整对话");
-        } else {
-          resetWorkbenchForProject();
-        }
-
-        setLoadedWorkspaceProjectId(activeProject.id);
-      })
-      .catch(() => {
-        if (!cancelled) {
-          resetWorkbenchForProject("完整对话恢复失败");
-          setLoadedWorkspaceProjectId(activeProject.id);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
+    setLoadedWorkspaceProjectId(activeProject.id);
   }, [activeProject.id]);
 
   useEffect(() => {
@@ -1279,7 +1266,7 @@ function CreatePage() {
         setSelectedInspirations(remoteCards.filter((card) => selectedInspirationIds.includes(card.id)));
         setLibraryCards(remoteCards);
         setVersions(remoteVersions);
-        // 默认进入“开始创作”时落在最新的创作记录（版本按 createdAt 升序，末尾即最新）
+        // 默认进入"开始创作"时落在最新的创作记录（版本按 createdAt 升序，末尾即最新）
         const latestVersion = remoteVersions[remoteVersions.length - 1];
         const sharedProjectId = getSharedProjectId();
         setActiveVersionId((current) => current || (latestVersion?.id ?? ""));
@@ -2226,7 +2213,7 @@ function CreatePage() {
             <div className="workbench-body">
               <div className="conversation-area">
                 <div ref={chatWindowRef} className={`chat-window ${messages.length === 0 ? "is-empty" : ""}`} aria-label="创作对话">
-                  {messages.length === 0 ? (
+                  {messages.length === 0 && !projectHasConversation ? (
                     <div className="chat-empty">
                       <div className="chat-empty-notes" aria-hidden="true">
                         <span className="chat-empty-note note-a">♪</span>
