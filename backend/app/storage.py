@@ -14,6 +14,10 @@ from .schemas import (
     BriefResponse,
     CollaborationSessionResponse,
     CollaborationSessionUpdateRequest,
+    CommunityComment,
+    CommunityDemoVersion,
+    CommunityPost,
+    CommunityPostSummary,
     DemoTaskRequest,
     DemoTaskResponse,
     InspirationCard,
@@ -145,6 +149,41 @@ def initialize_database() -> None:
 
                 CREATE INDEX IF NOT EXISTS idx_collaboration_sessions_project
                 ON collaboration_sessions(project_id, updated_at DESC);
+
+                CREATE TABLE IF NOT EXISTS community_posts (
+                    id TEXT PRIMARY KEY,
+                    project_id TEXT NOT NULL,
+                    author_client_id TEXT NOT NULL,
+                    author_name TEXT NOT NULL,
+                    title TEXT NOT NULL,
+                    description TEXT NOT NULL DEFAULT '',
+                    demo_version_ids_json TEXT NOT NULL DEFAULT '[]',
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_community_posts_project
+                ON community_posts(project_id, created_at DESC);
+
+                CREATE TABLE IF NOT EXISTS community_comments (
+                    id TEXT PRIMARY KEY,
+                    post_id TEXT NOT NULL,
+                    parent_id TEXT,
+                    author_client_id TEXT NOT NULL,
+                    author_name TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_community_comments_post
+                ON community_comments(post_id, created_at ASC);
+
+                CREATE TABLE IF NOT EXISTS community_likes (
+                    post_id TEXT NOT NULL,
+                    client_id TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    PRIMARY KEY (post_id, client_id)
+                );
                 """
             )
             ensure_column(connection, "projects", "creator_client_id", "TEXT")
@@ -742,3 +781,203 @@ def update_collaboration_session_record(session_id: str, payload: CollaborationS
         ).fetchone()
 
     return collaboration_session_from_row(row)
+
+
+# ===== 作品社区 =====
+def list_community_post_records(client_id=None):
+    initialize_database()
+    with connect() as connection:
+        rows = connection.execute(
+            """
+            SELECT id, project_id, author_client_id, author_name, title, description, created_at
+            FROM community_posts
+            ORDER BY created_at DESC
+            """
+        ).fetchall()
+        result = []
+        for row in rows:
+            likes = connection.execute(
+                "SELECT COUNT(*) AS c FROM community_likes WHERE post_id = ?", (row["id"],)
+            ).fetchone()["c"]
+            comments = connection.execute(
+                "SELECT COUNT(*) AS c FROM community_comments WHERE post_id = ?", (row["id"],)
+            ).fetchone()["c"]
+            demos = connection.execute(
+                "SELECT COUNT(*) AS c FROM demo_tasks WHERE project_id = ?", (row["project_id"],)
+            ).fetchone()["c"]
+            liked = False
+            if client_id:
+                liked = (
+                    connection.execute(
+                        "SELECT 1 FROM community_likes WHERE post_id = ? AND client_id = ?",
+                        (row["id"], client_id),
+                    ).fetchone()
+                    is not None
+                )
+            result.append(
+                CommunityPostSummary(
+                    id=row["id"],
+                    projectId=row["project_id"],
+                    authorName=row["author_name"],
+                    title=row["title"],
+                    description=row["description"],
+                    demoVersionCount=demos,
+                    likeCount=likes,
+                    likedByMe=liked,
+                    commentCount=comments,
+                    createdAt=row["created_at"],
+                )
+            )
+    return result
+
+
+def get_community_post_record(post_id, client_id=None):
+    initialize_database()
+    with connect() as connection:
+        row = connection.execute(
+            """
+            SELECT id, project_id, author_client_id, author_name, title, description, created_at
+            FROM community_posts WHERE id = ?
+            """,
+            (post_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        likes = connection.execute(
+            "SELECT COUNT(*) AS c FROM community_likes WHERE post_id = ?", (post_id,)
+        ).fetchone()["c"]
+        comments = connection.execute(
+            "SELECT COUNT(*) AS c FROM community_comments WHERE post_id = ?", (post_id,)
+        ).fetchone()["c"]
+        liked = False
+        if client_id:
+            liked = (
+                connection.execute(
+                    "SELECT 1 FROM community_likes WHERE post_id = ? AND client_id = ?",
+                    (post_id, client_id),
+                ).fetchone()
+                is not None
+            )
+        demo_rows = connection.execute(
+            """
+            SELECT id, project_id, status, message, progress, audio_url, lyrics, created_at
+            FROM demo_tasks WHERE project_id = ? ORDER BY created_at ASC
+            """,
+            (row["project_id"],),
+        ).fetchall()
+        demo_versions = [
+            CommunityDemoVersion(
+                taskId=d["id"],
+                title=(d["prompt"] or d["message"] or "未命名版本")[:80],
+                audioUrl=d["audio_url"],
+                lyrics=d["lyrics"],
+                progress=d["progress"],
+                createdAt=d["created_at"],
+            )
+            for d in demo_rows
+        ]
+        return CommunityPost(
+            id=row["id"],
+            projectId=row["project_id"],
+            authorClientId=row["author_client_id"],
+            authorName=row["author_name"],
+            title=row["title"],
+            description=row["description"],
+            demoVersions=demo_versions,
+            comments=list_community_comment_records(post_id),
+            likeCount=likes,
+            likedByMe=liked,
+            commentCount=comments,
+            createdAt=row["created_at"],
+        )
+
+
+def create_community_post_record(payload, author_client_id):
+    initialize_database()
+    now = utc_now_label()
+    post_id = f"post_{secrets.token_urlsafe(10)}"
+    with connect() as connection:
+        connection.execute(
+            """
+            INSERT INTO community_posts
+                (id, project_id, author_client_id, author_name, title, description, demo_version_ids_json, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, '[]', ?, ?)
+            """,
+            (post_id, payload.projectId, author_client_id, payload.authorName, payload.title, payload.description, now, now),
+        )
+    return get_community_post_record(post_id, author_client_id)
+
+
+def insert_community_comment_record(post_id, author_client_id, author_name, content, parent_id):
+    initialize_database()
+    now = utc_now_label()
+    comment_id = f"cmt_{secrets.token_urlsafe(10)}"
+    with connect() as connection:
+        connection.execute(
+            """
+            INSERT INTO community_comments (id, post_id, parent_id, author_client_id, author_name, content, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (comment_id, post_id, parent_id, author_client_id, author_name, content, now),
+        )
+        row = connection.execute(
+            """
+            SELECT id, post_id, parent_id, author_client_id, author_name, content, created_at
+            FROM community_comments WHERE id = ?
+            """,
+            (comment_id,),
+        ).fetchone()
+    return CommunityComment(
+        id=row["id"],
+        postId=row["post_id"],
+        parentId=row["parent_id"],
+        authorName=row["author_name"],
+        content=row["content"],
+        createdAt=row["created_at"],
+    )
+
+
+def list_community_comment_records(post_id):
+    initialize_database()
+    with connect() as connection:
+        rows = connection.execute(
+            """
+            SELECT id, post_id, parent_id, author_client_id, author_name, content, created_at
+            FROM community_comments WHERE post_id = ? ORDER BY created_at ASC
+            """,
+            (post_id,),
+        ).fetchall()
+    return [
+        CommunityComment(
+            id=r["id"],
+            postId=r["post_id"],
+            parentId=r["parent_id"],
+            authorName=r["author_name"],
+            content=r["content"],
+            createdAt=r["created_at"],
+        )
+        for r in rows
+    ]
+
+
+def toggle_community_like_record(post_id, client_id):
+    initialize_database()
+    with connect() as connection:
+        existing = connection.execute(
+            "SELECT 1 FROM community_likes WHERE post_id = ? AND client_id = ?", (post_id, client_id)
+        ).fetchone()
+        if existing:
+            connection.execute(
+                "DELETE FROM community_likes WHERE post_id = ? AND client_id = ?", (post_id, client_id)
+            )
+            liked = False
+        else:
+            connection.execute(
+                "INSERT INTO community_likes (post_id, client_id, created_at) VALUES (?, ?, ?)",
+                (post_id, client_id, utc_now_label()),
+            )
+            liked = True
+        like_count = connection.execute(
+            "SELECT COUNT(*) AS c FROM community_likes WHERE post_id = ?", (post_id,)
+        ).fetchone()["c"]
+    return like_count, liked

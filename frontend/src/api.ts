@@ -229,6 +229,40 @@ export async function analyzeInspiration(payload: BriefRequest): Promise<BriefRe
   } as BriefResponse;
 }
 
+export type ChatHistoryItem = {
+  role: "user" | "ai";
+  text: string;
+};
+
+export type ChatResponse = {
+  reply: string;
+  source: string;
+};
+
+export async function chatWithMinimax(payload: {
+  projectId: string;
+  history: ChatHistoryItem[];
+  content: string;
+}): Promise<ChatResponse> {
+  if (!API_BASE_URL) {
+    throw new Error("未配置 VITE_API_BASE_URL，无法调用 MiniMax 对话。");
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/chat`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Chat request failed with ${response.status}`);
+  }
+
+  return (await response.json()) as ChatResponse;
+}
+
 export async function createDemoTask(payload: DemoTaskRequest): Promise<DemoTaskResponse> {
   if (!API_BASE_URL) {
     await new Promise((resolve) => setTimeout(resolve, 280));
@@ -539,4 +573,180 @@ export async function listInspirations(): Promise<InspirationCard[]> {
 
 export function getApiConnectionLabel() {
   return API_BASE_URL ? "Python 后端已配置" : "本地模拟分析";
+}
+
+// ===== 作品社区 =====
+function getCommunityClientId(): string {
+  const key = "sonic_seed_client_id";
+  const current = localStorage.getItem(key);
+  if (current) return current;
+  const next = `client_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  localStorage.setItem(key, next);
+  return next;
+}
+
+export interface CommunityDemoVersion {
+  taskId: string;
+  title: string;
+  audioUrl: string | null;
+  lyrics: string | null;
+  progress: number | null;
+  createdAt: string | null;
+}
+
+export interface CommunityComment {
+  id: string;
+  postId: string;
+  parentId: string | null;
+  authorName: string;
+  content: string;
+  createdAt: string;
+}
+
+export interface CommunityPost {
+  id: string;
+  projectId: string;
+  authorClientId: string;
+  authorName: string;
+  title: string;
+  description: string;
+  demoVersions: CommunityDemoVersion[];
+  comments: CommunityComment[];
+  likeCount: number;
+  likedByMe: boolean;
+  commentCount: number;
+  createdAt: string;
+}
+
+export interface CommunityPostSummary {
+  id: string;
+  projectId: string;
+  authorName: string;
+  title: string;
+  description: string;
+  demoVersionCount: number;
+  likeCount: number;
+  likedByMe: boolean;
+  commentCount: number;
+  createdAt: string;
+}
+
+export interface CommunityPostCreate {
+  projectId: string;
+  authorName: string;
+  title: string;
+  description: string;
+}
+
+export interface CommunityCommentCreate {
+  authorName: string;
+  content: string;
+  parentId?: string | null;
+}
+
+function communityHeaders(extra: Record<string, string> = {}): Record<string, string> {
+  return { "content-type": "application/json", "x-client-id": getCommunityClientId(), ...extra };
+}
+
+export async function publishCommunityPost(payload: CommunityPostCreate): Promise<CommunityPost> {
+  if (!API_BASE_URL) {
+    await new Promise((resolve) => setTimeout(resolve, 240));
+    const fallback: CommunityPost = {
+      id: `local_post_${Date.now()}`,
+      projectId: payload.projectId,
+      authorClientId: getCommunityClientId(),
+      authorName: payload.authorName,
+      title: payload.title,
+      description: payload.description,
+      demoVersions: [],
+      comments: [],
+      likeCount: 0,
+      likedByMe: false,
+      commentCount: 0,
+      createdAt: new Date().toISOString(),
+    };
+    return fallback;
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/community/posts`, {
+    method: "POST",
+    headers: communityHeaders(),
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(`发布作品失败：${response.status}`);
+  }
+
+  return (await response.json()) as CommunityPost;
+}
+
+export async function listCommunityPosts(): Promise<CommunityPostSummary[]> {
+  if (!API_BASE_URL) {
+    return [];
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/community/posts`, {
+    method: "GET",
+    headers: communityHeaders(),
+  });
+
+  if (!response.ok) {
+    throw new Error(`加载作品社区失败：${response.status}`);
+  }
+
+  return (await response.json()) as CommunityPostSummary[];
+}
+
+export async function getCommunityPost(postId: string): Promise<CommunityPost> {
+  if (!API_BASE_URL) {
+    throw new Error("未配置 VITE_API_BASE_URL，无法加载作品。");
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/community/posts/${encodeURIComponent(postId)}`, {
+    method: "GET",
+    headers: communityHeaders(),
+  });
+
+  if (!response.ok) {
+    throw new Error(`加载作品失败：${response.status}`);
+  }
+
+  return (await response.json()) as CommunityPost;
+}
+
+export async function addCommunityComment(postId: string, payload: CommunityCommentCreate): Promise<CommunityComment> {
+  if (!API_BASE_URL) {
+    throw new Error("未配置 VITE_API_BASE_URL，无法发表评论。");
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/community/posts/${encodeURIComponent(postId)}/comments`, {
+    method: "POST",
+    headers: communityHeaders(),
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(`评论失败：${response.status}`);
+  }
+
+  return (await response.json()) as CommunityComment;
+}
+
+export async function toggleCommunityLike(postId: string): Promise<{ postId: string; likeCount: number; likedByMe: boolean }> {
+  if (!API_BASE_URL) {
+    throw new Error("未配置 VITE_API_BASE_URL，无法点赞。");
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/community/posts/${encodeURIComponent(postId)}/like`, {
+    method: "POST",
+    headers: communityHeaders(),
+    body: JSON.stringify({ clientId: getCommunityClientId() }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`点赞失败：${response.status}`);
+  }
+
+  return (await response.json()) as { postId: string; likeCount: number; likedByMe: boolean };
 }

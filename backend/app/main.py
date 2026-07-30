@@ -2,16 +2,22 @@ import os
 from typing import Optional
 from uuid import uuid4
 
-from fastapi import BackgroundTasks, FastAPI, File, HTTPException, UploadFile
+from fastapi import BackgroundTasks, FastAPI, File, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
 from .env_loader import load_local_env
 from .schemas import (
     BriefRequest,
     BriefResponse,
-    CollaborationSessionJoinRequest,
-    CollaborationSessionResponse,
-    CollaborationSessionUpdateRequest,
+    ChatRequest,
+    ChatResponse,
+    CommunityComment,
+    CommunityCommentCreate,
+    CommunityLikeRequest,
+    CommunityLikeResponse,
+    CommunityPost,
+    CommunityPostCreate,
+    CommunityPostSummary,
     DemoTaskRequest,
     DemoTaskResponse,
     HealthResponse,
@@ -20,27 +26,25 @@ from .schemas import (
     ProjectWorkspaceResponse,
     ProjectWorkspaceSaveRequest,
     ProjectSummary,
-    ShareLinkCreateRequest,
-    ShareLinkJoinResponse,
-    ShareLinkResponse,
     UploadResponse,
 )
 from .services import (
+    add_community_comment,
     build_brief,
-    create_share_link,
+    call_minimax_chat,
+    create_community_post,
     create_inspiration,
-    get_collaboration_session,
+    get_community_post,
     get_demo_task,
     get_project_workspace,
-    join_share_link,
-    list_collaboration_sessions,
+    list_community_posts,
     list_demo_tasks as read_demo_tasks,
     list_inspirations,
     list_projects as read_projects,
     queue_demo_task,
     run_queued_demo_task,
-    update_collaboration_session,
     save_project_workspace,
+    toggle_community_like,
     upsert_project,
 )
 from .upload_store import save_upload_bytes
@@ -116,55 +120,15 @@ def write_project_workspace(project_id: str, payload: ProjectWorkspaceSaveReques
         raise HTTPException(status_code=403, detail=str(error)) from error
 
 
-@app.post("/api/share-links", response_model=ShareLinkResponse)
-def save_share_link(payload: ShareLinkCreateRequest) -> ShareLinkResponse:
-    try:
-        return create_share_link(payload)
-    except PermissionError as error:
-        raise HTTPException(status_code=403, detail=str(error)) from error
-
-
-@app.post("/api/share-links/{token}/join", response_model=ShareLinkJoinResponse)
-def join_shared_workspace(token: str, payload: CollaborationSessionJoinRequest) -> ShareLinkJoinResponse:
-    if token != payload.shareToken:
-        raise HTTPException(status_code=400, detail="Share token mismatch")
-
-    try:
-        return join_share_link(payload)
-    except LookupError as error:
-        raise HTTPException(status_code=404, detail=str(error)) from error
-
-
-@app.get("/api/projects/{project_id}/collaboration-sessions", response_model=list[CollaborationSessionResponse])
-def read_collaboration_sessions(project_id: str) -> list[CollaborationSessionResponse]:
-    return list_collaboration_sessions(project_id)
-
-
-@app.get("/api/collaboration-sessions/{session_id}", response_model=CollaborationSessionResponse)
-def read_collaboration_session(session_id: str) -> CollaborationSessionResponse:
-    session = get_collaboration_session(session_id)
-    if session is None:
-        raise HTTPException(status_code=404, detail="Collaboration session not found")
-
-    return session
-
-
-@app.patch("/api/collaboration-sessions/{session_id}", response_model=CollaborationSessionResponse)
-def save_collaboration_session(session_id: str, payload: CollaborationSessionUpdateRequest) -> CollaborationSessionResponse:
-    try:
-        session = update_collaboration_session(session_id, payload)
-    except PermissionError as error:
-        raise HTTPException(status_code=403, detail=str(error)) from error
-
-    if session is None:
-        raise HTTPException(status_code=404, detail="Collaboration session not found")
-
-    return session
-
-
 @app.post("/api/brief", response_model=BriefResponse)
 def create_brief(payload: BriefRequest) -> BriefResponse:
     return build_brief(payload)
+
+
+@app.post("/api/chat", response_model=ChatResponse)
+def chat(payload: ChatRequest) -> ChatResponse:
+    reply = call_minimax_chat(payload)
+    return ChatResponse(reply=reply, source="minimax")
 
 
 @app.get("/api/inspirations", response_model=list[InspirationCard])
@@ -220,3 +184,39 @@ def read_demo_task(task_id: str) -> DemoTaskResponse:
         raise HTTPException(status_code=404, detail="Task not found")
 
     return task
+
+
+# ===== 作品社区 =====
+@app.get("/api/community/posts", response_model=list[CommunityPostSummary])
+def api_list_community_posts(clientId: Optional[str] = Query(default=None)) -> list[CommunityPostSummary]:
+    return list_community_posts(clientId or (None))
+
+
+@app.post("/api/community/posts", response_model=CommunityPost)
+def create_community_post_endpoint(payload: CommunityPostCreate, request: Request) -> CommunityPost:
+    client_id = request.headers.get("x-client-id") or "anon"
+    if not payload.projectId:
+        raise HTTPException(status_code=400, detail="projectId 不能为空")
+
+    return create_community_post(payload, client_id)
+
+
+@app.get("/api/community/posts/{post_id}", response_model=CommunityPost)
+def read_community_post(post_id: str, clientId: Optional[str] = Query(default=None)) -> CommunityPost:
+    post = get_community_post(post_id, clientId or (None))
+    if post is None:
+        raise HTTPException(status_code=404, detail="作品不存在或已被删除")
+
+    return post
+
+
+@app.post("/api/community/posts/{post_id}/comments", response_model=CommunityComment)
+def comment_community_post(post_id: str, payload: CommunityCommentCreate, request: Request) -> CommunityComment:
+    client_id = request.headers.get("x-client-id") or "anon"
+    return add_community_comment(post_id, payload, client_id)
+
+
+@app.post("/api/community/posts/{post_id}/like", response_model=CommunityLikeResponse)
+def like_community_post(post_id: str, payload: CommunityLikeRequest) -> CommunityLikeResponse:
+    like_count, liked_by_me = toggle_community_like(post_id, payload.clientId)
+    return CommunityLikeResponse(postId=post_id, likeCount=like_count, likedByMe=liked_by_me)

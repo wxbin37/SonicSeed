@@ -11,6 +11,8 @@ import {
   FolderPlus,
   Heart,
   Headphones,
+  History,
+  Home,
   Image as ImageIcon,
   Library,
   LayoutGrid,
@@ -42,28 +44,32 @@ import {
 } from "lucide-react";
 import {
   analyzeInspiration,
+  addCommunityComment,
+  chatWithMinimax,
   createDemoTask,
-  createShareLink,
   getApiConnectionLabel,
-  getCollaborationSession,
+  getCommunityPost,
   getDemoTask,
   getProjectWorkspace,
   hasApiConnection,
-  joinShareLink,
-  listCollaborationSessions,
+  listCommunityPosts,
   listDemoTasks,
   listInspirations,
   listProjects,
+  publishCommunityPost,
   saveInspiration,
   saveProject,
   saveProjectWorkspace,
-  updateCollaborationSession,
+  toggleCommunityLike,
   uploadAudio,
   type AnalysisTag,
   type BriefAttachment,
   type BriefResponse,
+  type CommunityComment,
+  type CommunityDemoVersion,
+  type CommunityPost,
+  type CommunityPostSummary,
   type InspirationRecord,
-  type CollaborationSession,
   type DemoTaskResponse,
   type InspirationCard,
   type InputMode,
@@ -167,14 +173,7 @@ type CreationSetting = {
   options: string[];
 };
 
-const initialMessages: ChatMessage[] = [
-  {
-    id: "msg_2",
-    role: "ai",
-    label: "AI",
-    text: "把歌词、旋律描述、修改意见或附件发给我。你可以先加入灵感库，也可以直接生成一个版本。",
-  },
-];
+const initialMessages: ChatMessage[] = [];
 
 const defaultCreationPrompt = "保留原有歌词和主旋律，加入电子合成器元素，节奏偏中速，前半段氛围克制，副歌部分情绪上升，整体风格偏未来都市感。";
 
@@ -562,14 +561,6 @@ function getSharedProjectId() {
   return new URLSearchParams(window.location.search).get("project") ?? "";
 }
 
-function getShareToken() {
-  if (typeof window === "undefined") {
-    return "";
-  }
-
-  return new URLSearchParams(window.location.search).get("share") ?? "";
-}
-
 function getAttachmentType(file: File): BriefAttachment["type"] {
   if (file.type.startsWith("audio/")) {
     return "audio";
@@ -700,12 +691,6 @@ function buildPrompt(text: string, attachments: LocalAttachment[]) {
 function mergeProjectList(current: Project[], incoming: Project) {
   return current.some((project) => project.id === incoming.id)
     ? current.map((project) => (project.id === incoming.id ? { ...project, ...incoming } : project))
-    : [incoming, ...current];
-}
-
-function mergeSessionList(current: CollaborationSession[], incoming: CollaborationSession) {
-  return current.some((session) => session.id === incoming.id)
-    ? current.map((session) => (session.id === incoming.id ? incoming : session))
     : [incoming, ...current];
 }
 
@@ -961,12 +946,16 @@ function CreatePage() {
     [selectedInspirationIds],
   );
   const clientId = useMemo(getOrCreateClientId, []);
-  const shareToken = useMemo(getShareToken, []);
   const [projects, setProjects] = useState<Project[]>(() => (hasApiConnection() ? [] : readStorage<Project[]>(STORAGE_KEYS.projects, [])));
   const [activeProjectId, setActiveProjectId] = useState<string>(() =>
     getSharedProjectId() || (hasApiConnection() ? "" : (readStorage<Project[]>(STORAGE_KEYS.projects, [])[0]?.id ?? "")),
   );
-  const [historyCollapsed, setHistoryCollapsed] = useState(false);
+  const [historyCollapsed, setHistoryCollapsed] = useState(true);
+  const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [shareProjectId, setShareProjectId] = useState("");
+  const [shareTitle, setShareTitle] = useState("");
+  const [shareName, setShareName] = useState("");
+  const [shareDesc, setShareDesc] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
   const [selectedInspirations, setSelectedInspirations] = useState<InspirationCard[]>(cachedSelectedInspirations);
   const [draft, setDraft] = useState(() =>
@@ -984,8 +973,7 @@ function CreatePage() {
   );
   const [listenState, setListenState] = useState("暂无可试听版本");
   const [playingVersionId, setPlayingVersionId] = useState("");
-  const [shareState, setShareState] = useState("复制协作链接");
-  const [events, setEvents] = useState<CollaborationEvent[]>([]);
+  const [playProgress, setPlayProgress] = useState(0);
   const [libraryCount, setLibraryCount] = useState(() => (hasApiConnection() ? 0 : readStorage<InspirationCard[]>(STORAGE_KEYS.library, []).length));
   const [libraryCards, setLibraryCards] = useState<InspirationCard[]>(() =>
     hasApiConnection() ? [] : readStorage<InspirationCard[]>(STORAGE_KEYS.library, []),
@@ -998,12 +986,7 @@ function CreatePage() {
   const [creationSettings, setCreationSettings] = useState<Record<string, string>>(() =>
     Object.fromEntries(creationSettingRows.map((row) => [row.id, row.options[0]])),
   );
-  const [activeSession, setActiveSession] = useState<CollaborationSession | null>(null);
-  const [collaborationSessions, setCollaborationSessions] = useState<CollaborationSession[]>([]);
-  const [reviewSessionId, setReviewSessionId] = useState("");
-  const [collaborationState, setCollaborationState] = useState(() => (hasApiConnection() ? "接力未开启" : "连接后端后可共享"));
   const analysisRequestRef = useRef(0);
-  const sessionSyncRef = useRef("");
   const projectWorkspaceSyncRef = useRef("");
   const newProjectRef = useRef("");
   const creationSelectionInitializedRef = useRef(false);
@@ -1039,18 +1022,6 @@ function CreatePage() {
   const currentPrompt = useMemo(() => buildPrompt(draft, attachments), [draft, attachments]);
   const currentMode = useMemo(() => inferMode(attachments), [attachments]);
   const canSubmit = currentPrompt.trim().length > 2;
-  const activeCollaborationSessions = useMemo(
-    () => collaborationSessions.filter((session) => session.projectId === activeProject.id),
-    [activeProject.id, collaborationSessions],
-  );
-  const isShareViewer = Boolean(shareToken && (!activeSession || activeSession.creatorClientId !== clientId));
-  const visibleCollaborationSessions = useMemo(
-    () => (isShareViewer ? activeCollaborationSessions.filter((session) => session.collaboratorClientId === clientId) : activeCollaborationSessions),
-    [activeCollaborationSessions, clientId, isShareViewer],
-  );
-  const hasCreatorConflict = Boolean(activeProject.creatorClientId && activeProject.creatorClientId !== clientId);
-  const canShareWorkspace = hasApiConnection() && !isShareViewer && !hasCreatorConflict;
-  const shareButtonText = !hasApiConnection() ? "连接后端后可分享" : canShareWorkspace ? shareState : "创建者可分享";
   const creationSeeds = useMemo(() => libraryCards.map(cardToCreationSeed), [libraryCards]);
   const visibleCreationSeeds = useMemo(
     () => creationSeeds.filter((seed) => creationFilter === "全部" || seed.kind === creationFilter),
@@ -1109,28 +1080,6 @@ function CreatePage() {
   }, [activeVersion, activeVersionId]);
 
   useEffect(() => {
-    if (!activeVersion?.audioUrl) {
-      return;
-    }
-
-    const hasAudioMessage = messages.some((message) => message.audioUrl === activeVersion.audioUrl);
-    if (hasAudioMessage) {
-      return;
-    }
-
-    setMessages((current) => [
-      ...current,
-      {
-        id: `ai_recovered_audio_${activeVersion.id}`,
-        role: "ai",
-        label: "AI",
-        text: `已找回 ${activeVersion.title} 的试听结果，可直接播放。`,
-        audioUrl: activeVersion.audioUrl,
-      },
-    ]);
-  }, [activeVersion?.audioUrl, activeVersion?.id, activeVersion?.title, messages]);
-
-  useEffect(() => {
     if (!hasApiConnection()) {
       return;
     }
@@ -1160,7 +1109,7 @@ function CreatePage() {
   }, []);
 
   useEffect(() => {
-    if (!activeProject.id || isShareViewer) {
+    if (!activeProject.id) {
       return;
     }
 
@@ -1213,88 +1162,6 @@ function CreatePage() {
     return () => {
       cancelled = true;
     };
-  }, [activeProject.id, isShareViewer]);
-
-  useEffect(() => {
-    if (!shareToken) {
-      return;
-    }
-
-    if (!hasApiConnection()) {
-      setCollaborationState("需要连接 Python 后端才能加入接力");
-      return;
-    }
-
-    let cancelled = false;
-    setCollaborationState("正在加入私域接力");
-
-    void joinShareLink(shareToken, clientId, getCollaboratorName(clientId))
-      .then(({ project, session }) => {
-        if (cancelled) {
-          return;
-        }
-
-        setProjects((current) => mergeProjectList(current, project));
-        setActiveProjectId(project.id);
-        setActiveSession(session);
-        setReviewSessionId(session.id);
-        setCollaborationSessions((current) => mergeSessionList(current, session));
-        setCollaborationState("已加入私域接力");
-        addEvent(session.collaboratorName, "通过私域链接进入工作台");
-
-        if (Object.keys(session.workbench).length) {
-          applySessionWorkbench(session);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setCollaborationState("私域链接不可用");
-          setAnalysisState("私域链接加入失败");
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [clientId, shareToken]);
-
-  useEffect(() => {
-    if (!activeProject.id) {
-      setCollaborationSessions([]);
-      return;
-    }
-
-    if (!hasApiConnection()) {
-      setCollaborationState("连接后端后可共享");
-      return;
-    }
-
-    let cancelled = false;
-
-    const refreshSessions = () => {
-      void listCollaborationSessions(activeProject.id)
-        .then((sessions) => {
-          if (cancelled) {
-            return;
-          }
-
-          setCollaborationSessions(sessions);
-          setCollaborationState(sessions.length ? `${sessions.length} 个接力进度` : "暂无接力进度");
-        })
-        .catch(() => {
-          if (!cancelled) {
-            setCollaborationState("接力进度同步失败");
-          }
-        });
-    };
-
-    refreshSessions();
-    const interval = window.setInterval(refreshSessions, 5000);
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(interval);
-    };
   }, [activeProject.id]);
 
   useEffect(() => {
@@ -1333,57 +1200,14 @@ function CreatePage() {
     }
 
     const timer = window.setTimeout(() => {
-      void runAnalysis("auto", currentPrompt, attachments, false);
+      void runAnalysis("auto", currentPrompt, attachments);
     }, 900);
 
     return () => window.clearTimeout(timer);
-  }, [activeProject.id, canSubmit, currentMode, currentPrompt, attachments]);
+  }, [activeProject.id, canSubmit, currentMode, currentPrompt, attachments, messages]);
 
   useEffect(() => {
-    if (!hasApiConnection() || !activeSession || activeSession.collaboratorClientId !== clientId) {
-      return;
-    }
-
-    const snapshot = buildWorkbenchSnapshot();
-    const latestMessage = messages.length ? messages[messages.length - 1].text.slice(0, 220) : "正在整理创作工作台";
-    const nextProgress = Math.max(activeProject.progress || 0, activeVersion?.progress ?? 0, activeSession.progress);
-    const signature = JSON.stringify({
-      sessionId: activeSession.id,
-      status: analysisState,
-      progress: nextProgress,
-      latestMessage,
-      snapshot,
-    });
-
-    if (sessionSyncRef.current === signature) {
-      return;
-    }
-
-    const timer = window.setTimeout(() => {
-      void updateCollaborationSession(activeSession.id, {
-        collaboratorClientId: clientId,
-        collaboratorName: getCollaboratorName(clientId),
-        status: analysisState,
-        progress: nextProgress,
-        lastMessage: latestMessage,
-        workbench: snapshot,
-      })
-        .then((session) => {
-          sessionSyncRef.current = signature;
-          setActiveSession(session);
-          setCollaborationSessions((current) => mergeSessionList(current, session));
-          setCollaborationState("接力进度已同步");
-        })
-        .catch(() => {
-          setCollaborationState("接力进度同步失败");
-        });
-    }, 900);
-
-    return () => window.clearTimeout(timer);
-  }, [activeProject.progress, activeSession, activeVersion?.progress, analysisState, analysisTags, brief, clientId, draft, messages, versions]);
-
-  useEffect(() => {
-    if (!activeProject.id || isShareViewer || loadedWorkspaceProjectId !== activeProject.id) {
+    if (!activeProject.id || loadedWorkspaceProjectId !== activeProject.id) {
       return;
     }
 
@@ -1422,10 +1246,10 @@ function CreatePage() {
     }, 700);
 
     return () => window.clearTimeout(timer);
-  }, [activeProject.id, activeVersionId, analysisTags, brief, clientId, draft, isShareViewer, loadedWorkspaceProjectId, messages, versions]);
+  }, [activeProject.id, activeVersionId, analysisTags, brief, clientId, draft, loadedWorkspaceProjectId, messages, versions]);
 
-  function addEvent(actor: string, action: string) {
-    setEvents((current) => [{ id: `evt_${Date.now()}`, actor, action, time: nowLabel() }, ...current].slice(0, 5));
+  function addEvent(_actor: string, _action: string) {
+    // 私域接力的操作记录已移除，保留调用点以免改动其它逻辑。
   }
 
   function buildWorkbenchSnapshot(overrides: Partial<WorkbenchSnapshot> = {}): WorkbenchSnapshot {
@@ -1487,38 +1311,9 @@ function CreatePage() {
     setAnalysisState(status);
   }
 
-  function applySessionWorkbench(session: CollaborationSession) {
-    applyWorkbenchSnapshot(session.workbench, `${session.collaboratorName} 的接力工作台`);
-    setCollaborationState(`${session.collaboratorName} 最新进度 ${session.progress}%`);
-  }
-
   function handleSelectProject(projectId: string) {
     setActiveProjectId(projectId);
-    setReviewSessionId("");
-    setActiveSession((session) => (session?.projectId === projectId && session.collaboratorClientId === clientId ? session : null));
     resetWorkbenchForProject("正在打开创作历史");
-  }
-
-  async function handleOpenCollaborationSession(sessionId: string) {
-    setReviewSessionId(sessionId);
-    const localSession = collaborationSessions.find((session) => session.id === sessionId);
-
-    if (localSession) {
-      setActiveSession(localSession);
-      setActiveProjectId(localSession.projectId);
-      applySessionWorkbench(localSession);
-    }
-
-    try {
-      const session = await getCollaborationSession(sessionId);
-      setActiveSession(session);
-      setActiveProjectId(session.projectId);
-      setCollaborationSessions((current) => mergeSessionList(current, session));
-      applySessionWorkbench(session);
-      addEvent(session.collaboratorName, "打开了接力工作台快照");
-    } catch {
-      setCollaborationState("接力工作台读取失败");
-    }
   }
 
   function ensureProject(prompt = currentPrompt) {
@@ -1640,13 +1435,13 @@ function CreatePage() {
         id: `setup_${Date.now()}`,
         role: "user",
         label: "我",
-        text: `创作配置已更新：\n${promptForTask}`,
+        text: `创作版本输入：\n${promptForTask}`,
       },
     ]);
     addEvent("我", shouldGenerate ? "提交创作配置并生成试听版" : "保存了创作配置草稿");
 
     const selectedAttachments = uniqueBriefAttachments(selectedCreationSeeds.flatMap((seed) => seed.attachments));
-    const nextBrief = await runAnalysis("manual", promptForTask, selectedAttachments, true, projectId);
+    const nextBrief = await runAnalysis("manual", promptForTask, selectedAttachments, projectId);
     if (!shouldGenerate) {
       setAnalysisState("创作草稿已保存");
       return;
@@ -1670,7 +1465,6 @@ function CreatePage() {
     reason: "auto" | "manual",
     prompt = currentPrompt,
     nextAttachments: BriefAttachment[] = attachments,
-    appendMessage = reason === "manual",
     projectIdOverride = activeProject.id || "draft",
   ) {
     if (!prompt.trim()) {
@@ -1697,18 +1491,6 @@ function CreatePage() {
       setBrief(nextBrief);
       setAnalysisTags(nextBrief.tags);
       setAnalysisState(nextBrief.source === "backend" ? "后端已同步" : "本地模拟完成");
-
-      if (appendMessage) {
-        setMessages((current) => [
-          ...current,
-          {
-            id: `ai_${Date.now()}`,
-            role: "ai",
-            label: "AI",
-            text: nextBrief.summary,
-          },
-        ]);
-      }
 
       return nextBrief;
     } catch {
@@ -1778,35 +1560,73 @@ function CreatePage() {
     setAttachments((current) => current.filter((attachment) => attachment.id !== id));
   }
 
+  const [chatThinking, setChatThinking] = useState(false);
+
   async function handleSend() {
-    const prompt = currentPrompt;
+    const sentText = (draft.trim() || currentPrompt.trim());
     const sentAttachments = attachments;
-    if (!prompt.trim()) {
+    const messageText = sentText || "已发送附件素材";
+    if (!sentText && !sentAttachments.length) {
       return;
     }
 
-    ensureProject(prompt);
+    ensureProject(messageText);
     setMessages((current) => [
       ...current,
       {
         id: `user_${Date.now()}`,
         role: "user",
         label: "我",
-        text: draft.trim() || "已发送附件素材",
+        text: messageText,
         attachments: sentAttachments,
       },
     ]);
     setDraft("");
     setAttachments([]);
     addEvent("我", "发送了一条创作上下文");
-    await runAnalysis("manual", prompt, sentAttachments, true);
+    void runAnalysis("auto", sentText, sentAttachments);
+
+    const history = messages
+      .map((message) => ({ role: message.role, text: message.text }))
+      .filter((message) => message.text.trim());
+
+    try {
+      setChatThinking(true);
+      const chatContent = sentText || "（已发送附件素材，请结合上下文给建议）";
+      const { reply } = await chatWithMinimax({
+        projectId: activeProject?.id ?? "local",
+        history,
+        content: chatContent,
+      });
+      setMessages((current) => [
+        ...current,
+        {
+          id: `ai_${Date.now()}`,
+          role: "ai",
+          label: "AI",
+          text: reply,
+        },
+      ]);
+    } catch {
+      setMessages((current) => [
+        ...current,
+        {
+          id: `ai_${Date.now()}`,
+          role: "ai",
+          label: "AI",
+          text: "（对话助手暂时不可用，请稍后再试）",
+        },
+      ]);
+    } finally {
+      setChatThinking(false);
+    }
   }
 
-  async function handleSaveInspiration() {
+  async function handleSaveInspiration(): Promise<InspirationCard | null> {
     const prompt = currentPrompt;
     if (!prompt.trim()) {
       setAnalysisState("先输入内容或上传附件");
-      return;
+      return null;
     }
 
     const projectId = ensureProject(prompt);
@@ -1835,9 +1655,26 @@ function CreatePage() {
           text: `已加入灵感库：${title}`,
         },
       ]);
+      return card;
     } catch {
       setAnalysisState("加入灵感库失败");
+      return null;
     }
+  }
+
+  async function handleCreateVersion() {
+    const prompt = currentPrompt;
+    if (!prompt.trim()) {
+      setCreationModalOpen(true);
+      return;
+    }
+    const card = await handleSaveInspiration();
+    if (card) {
+      setSelectedCreationIds((prev) =>
+        Array.from(new Set([...prev, `library_${card.id}`])),
+      );
+    }
+    setCreationModalOpen(true);
   }
 
   async function createVersionForProject(projectId: string, promptForTask: string, referenceBrief: BriefResponse, taskAttachments: BriefAttachment[] = attachments) {
@@ -2021,11 +1858,20 @@ function CreatePage() {
     const nextAudio = new Audio(targetVersion.audioUrl);
     versionAudioRef.current = nextAudio;
     versionAudioIdRef.current = targetVersion.id;
+    setPlayProgress(0);
     setListenState(`试听 ${targetVersion.title}`);
+
+    nextAudio.addEventListener("timeupdate", () => {
+      const duration = nextAudio.duration || 0;
+      if (duration > 0) {
+        setPlayProgress(Math.min(100, (nextAudio.currentTime / duration) * 100));
+      }
+    });
 
     nextAudio.addEventListener("ended", () => {
       if (versionAudioIdRef.current === targetVersion.id) {
         setPlayingVersionId("");
+        setPlayProgress(0);
         setListenState(`${targetVersion.title} 播放完成`);
       }
     });
@@ -2033,6 +1879,7 @@ function CreatePage() {
     nextAudio.addEventListener("error", () => {
       if (versionAudioIdRef.current === targetVersion.id) {
         setPlayingVersionId("");
+        setPlayProgress(0);
         setListenState("浏览器暂时不能播放该音频");
       }
     });
@@ -2068,52 +1915,53 @@ function CreatePage() {
     addEvent("我", "新建了一个创作空间");
   }
 
-  async function handleCopyShareLink() {
-    if (!canShareWorkspace) {
-      setShareState(!hasApiConnection() ? "连接后端后可分享" : "只有创建者可分享");
-      window.setTimeout(() => setShareState("复制协作链接"), 2200);
-      return;
+  function readNickname(): string {
+    try {
+      return localStorage.getItem("sonic_seed_nickname") || "";
+    } catch {
+      return "";
     }
+  }
 
+  function writeNickname(name: string) {
+    try {
+      localStorage.setItem("sonic_seed_nickname", name);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function handleShareToCommunity() {
     const projectId = activeProject.id || ensureProject(currentPrompt || "新的创作");
-    const localProject =
-      projects.find((project) => project.id === projectId) ??
-      ({
-        ...activeProject,
-        id: projectId,
-        title: activeProject.title || "未命名创作",
-        subtitle: currentPrompt ? summarizePrompt(currentPrompt) : activeProject.subtitle,
-      } satisfies Project);
+    setShareProjectId(projectId);
+    setShareTitle(activeProject.title || "未命名创作");
+    setShareName(readNickname());
+    setShareDesc(currentPrompt ? summarizePrompt(currentPrompt) : (brief?.summary ?? ""));
+    setShareModalOpen(true);
+  }
 
-    if (localProject.creatorClientId && localProject.creatorClientId !== clientId) {
-      setShareState("只有创建者可分享");
-      window.setTimeout(() => setShareState("复制协作链接"), 2200);
+  async function confirmShare() {
+    if (!shareProjectId) {
       return;
     }
 
-    const projectForSharing: Project = {
-      ...localProject,
-      creatorClientId: localProject.creatorClientId ?? clientId,
-      status: localProject.status === "未保存" ? "可接力" : localProject.status,
-      updated: nowLabel(),
-    };
-
-    setShareState("生成链接中");
-    setProjects((current) => mergeProjectList(current, projectForSharing));
+    const name = shareName.trim() || "我";
 
     try {
-      await saveProject(projectForSharing);
-      const share = await createShareLink(projectId, clientId);
-      const link = `${window.location.origin}${share.path}`;
-      await navigator.clipboard.writeText(link);
-      setShareState("链接已复制");
-      setCollaborationState("私域链接已生成，等待接力");
-      addEvent("我", "生成了私域接力链接");
-    } catch {
-      setShareState("分享失败");
+      const post = await publishCommunityPost({
+        projectId: shareProjectId,
+        authorName: name,
+        title: shareTitle.trim() || "我的音乐创作",
+        description: shareDesc.trim(),
+      });
+      writeNickname(name);
+      const link = `${window.location.origin}/community/post/${post.id}`;
+      await navigator.clipboard.writeText(link).catch(() => undefined);
+      setShareModalOpen(false);
+      window.alert(`已分享到作品社区，链接已复制：\n${link}`);
+    } catch (error) {
+      window.alert(`分享失败：${error instanceof Error ? error.message : String(error)}`);
     }
-
-    window.setTimeout(() => setShareState("复制协作链接"), 2200);
   }
 
   return (
@@ -2123,142 +1971,89 @@ function CreatePage() {
           <ArrowLeft size={19} />
         </a>
         <h1>创作工作台</h1>
-        <button
-          className="icon-button"
-          disabled={!canShareWorkspace}
-          onClick={handleCopyShareLink}
-          title={shareButtonText}
-          type="button"
-          aria-label="分享创作空间"
-        >
-          <Share2 size={18} />
-        </button>
+        <div className="topbar-actions">
+          <button
+            className="icon-button"
+            onClick={() => setHistoryCollapsed(false)}
+            type="button"
+            aria-label="查看创作历史"
+            title="创作历史"
+          >
+            <History size={18} />
+          </button>
+          <a className="icon-button" href="/community" aria-label="作品社区" title="作品社区">
+            <UsersRound size={18} />
+          </a>
+          <button
+            className="icon-button primary"
+            onClick={handleShareToCommunity}
+            type="button"
+            aria-label="分享到作品社区"
+            title="分享到作品社区"
+          >
+            <Share2 size={18} />
+          </button>
+        </div>
       </header>
 
       <section className="studio-layout" data-history-collapsed={historyCollapsed}>
         <aside className="history-sidebar" data-collapsed={historyCollapsed} aria-label="创作历史记录列表">
           <div className="history-top">
-            <button
-              className="tiny-button"
-              onClick={() => setHistoryCollapsed((value) => !value)}
-              type="button"
-              aria-label={historyCollapsed ? "展开创作历史" : "折叠创作历史"}
-            >
-              {historyCollapsed ? <PanelLeftOpen size={17} /> : <PanelLeftClose size={17} />}
+            <div>
+              <p>协作空间</p>
+              <h2>创作历史</h2>
+            </div>
+            <button className="tiny-button" onClick={() => setHistoryCollapsed(true)} type="button" aria-label="收起创作历史">
+              <PanelLeftClose size={17} />
             </button>
-            {!historyCollapsed && (
-              <>
-                <div>
-                  <p>协作空间</p>
-                  <h2>创作历史</h2>
-                </div>
-                <button className="tiny-button" onClick={handleCreateProject} type="button" aria-label="新建创作">
-                  <Plus size={17} />
+          </div>
+
+          <div className="history-list">
+            {projects.length ? (
+              projects.map((project) => (
+                <button
+                  className="history-item"
+                  data-active={project.id === activeProjectId}
+                  key={project.id}
+                  onClick={() => handleSelectProject(project.id)}
+                  type="button"
+                >
+                  <span className="history-meta">
+                    <ListMusic size={14} />
+                    {project.updated}
+                  </span>
+                  <strong>{project.title}</strong>
+                  <em>{project.subtitle}</em>
+                  <span className="progress-track" aria-label={`${project.title}进度 ${project.progress}%`}>
+                    <span style={{ width: `${project.progress}%` }} />
+                  </span>
+                  <span className="history-footer">
+                    <span>
+                      <UsersRound size={14} />
+                      {project.owner}
+                    </span>
+                    <span>{project.status}</span>
+                  </span>
                 </button>
-              </>
+              ))
+            ) : (
+              <article className="empty-state">
+                <ListMusic size={18} />
+                <strong>还没有创作历史</strong>
+                <p>发送内容、加入灵感库或创作版本后会自动创建。</p>
+              </article>
             )}
           </div>
 
-          {historyCollapsed ? (
-            <button className="history-rail-button" onClick={() => setHistoryCollapsed(false)} type="button">
-              <ListMusic size={18} />
-            </button>
-          ) : (
-            <>
-              <div className="history-list">
-                {projects.length ? (
-                  projects.map((project) => (
-                    <button
-                      className="history-item"
-                      data-active={project.id === activeProjectId}
-                      key={project.id}
-                      onClick={() => handleSelectProject(project.id)}
-                      type="button"
-                    >
-                      <span className="history-meta">
-                        <ListMusic size={14} />
-                        {project.updated}
-                      </span>
-                      <strong>{project.title}</strong>
-                      <em>{project.subtitle}</em>
-                      <span className="progress-track" aria-label={`${project.title}进度 ${project.progress}%`}>
-                        <span style={{ width: `${project.progress}%` }} />
-                      </span>
-                      <span className="history-footer">
-                        <span>
-                          <UsersRound size={14} />
-                          {project.owner}
-                        </span>
-                        <span>{project.status}</span>
-                      </span>
-                    </button>
-                  ))
-                ) : (
-                  <article className="empty-state">
-                    <ListMusic size={18} />
-                    <strong>还没有创作历史</strong>
-                    <p>发送内容、加入灵感库或创作版本后会自动创建。</p>
-                  </article>
-                )}
-              </div>
-
-              <section className="handoff-panel" aria-label="私域接力进度">
-                <div className="handoff-heading">
-                  <span>
-                    <UsersRound size={14} />
-                    私域接力
-                  </span>
-                  <small>{collaborationState}</small>
-                </div>
-
-                <div className="handoff-list">
-                  {visibleCollaborationSessions.length ? (
-                    visibleCollaborationSessions.map((session) => (
-                      <button
-                        className="handoff-item"
-                        data-active={session.id === reviewSessionId}
-                        key={session.id}
-                        onClick={() => void handleOpenCollaborationSession(session.id)}
-                        type="button"
-                      >
-                        <span>
-                          <UsersRound size={13} />
-                          {session.collaboratorClientId === clientId ? "我的接力" : session.collaboratorName}
-                        </span>
-                        <strong>{session.status}</strong>
-                        <em>{session.lastMessage || "等待继续修改"}</em>
-                        <span className="progress-track" aria-label={`${session.collaboratorName}进度 ${session.progress}%`}>
-                          <span style={{ width: `${session.progress}%` }} />
-                        </span>
-                      </button>
-                    ))
-                  ) : (
-                    <article className="handoff-empty">
-                      <UsersRound size={16} />
-                      <strong>还没有接力进度</strong>
-                      <p>创建者复制私域链接后，协作者进入并修改时会显示在这里。</p>
-                    </article>
-                  )}
-                </div>
-              </section>
-
-              <button className="share-link" disabled={!canShareWorkspace} onClick={handleCopyShareLink} type="button">
-                {shareState === "复制协作链接" ? <Link2 size={16} /> : <Copy size={16} />}
-                {shareButtonText}
-              </button>
-
-              <div className="event-feed" aria-label="协作动态">
-                {events.map((event) => (
-                  <article key={event.id}>
-                    <span>{event.time}</span>
-                    <strong>{event.actor}</strong>
-                    <p>{event.action}</p>
-                  </article>
-                ))}
-              </div>
-            </>
-          )}
+          <button className="history-new" onClick={handleCreateProject} type="button">
+            <Plus size={16} />
+            新建创作
+          </button>
         </aside>
+
+        {!historyCollapsed && (
+          <div className="history-overlay" onClick={() => setHistoryCollapsed(true)} aria-hidden="true" />
+        )}
 
         <section className="studio-main" aria-label="创作工作区">
           <section className="workbench-panel" aria-label="AI 对话创作工作台">
@@ -2296,7 +2091,12 @@ function CreatePage() {
             <div className="workbench-body">
               <div className="conversation-area">
                 <div className="chat-window" aria-label="创作对话">
-                  {messages.map((message) => (
+                  {messages.length === 0 ? (
+                    <p className="chat-empty">
+                      把灵感发给我，我们一起写歌。可以写歌词、描述旋律、贴修改意见，或上传旧 Demo。
+                    </p>
+                  ) : (
+                    messages.map((message) => (
                     <article className={`chat-message ${message.role}`} key={message.id}>
                       <span>
                         {message.role === "ai" ? <Bot size={14} /> : <UsersRound size={14} />}
@@ -2326,7 +2126,8 @@ function CreatePage() {
                         </div>
                       )}
                     </article>
-                  ))}
+                    ))
+                  )}
                 </div>
 
                 <div className="composer-box">
@@ -2380,13 +2181,13 @@ function CreatePage() {
                       <Library size={16} />
                       加入灵感库
                     </button>
-                    <button className="utility-button" onClick={() => setCreationModalOpen(true)} type="button">
+                    <button className="utility-button" onClick={() => void handleCreateVersion()} type="button">
                       <Headphones size={16} />
                       创作版本
                     </button>
-                    <button className="send-button" disabled={!canSubmit} onClick={() => void handleSend()} type="button">
+                    <button className="send-button" disabled={!canSubmit || chatThinking} onClick={() => void handleSend()} type="button">
                       <Send size={16} />
-                      发送
+                      {chatThinking ? "思考中" : "发送"}
                     </button>
                   </div>
                 </div>
@@ -2627,6 +2428,62 @@ function CreatePage() {
             )}
           </div>
         </section>
+      )}
+
+      {shareModalOpen && (
+        <div className="creation-modal-layer" role="dialog" aria-modal="true" aria-label="分享到作品社区">
+          <div className="creation-modal share-modal">
+            <header className="modal-head">
+              <h3>分享到作品社区</h3>
+              <button className="icon-button" onClick={() => setShareModalOpen(false)} type="button" aria-label="关闭">
+                <X size={18} />
+              </button>
+            </header>
+            <label className="field">
+              <span>作品标题</span>
+              <input value={shareTitle} onChange={(event) => setShareTitle(event.target.value)} placeholder="给作品起个名字" />
+            </label>
+            <label className="field">
+              <span>简介</span>
+              <textarea value={shareDesc} onChange={(event) => setShareDesc(event.target.value)} rows={3} placeholder="聊聊这首作品的灵感" />
+            </label>
+            <label className="field">
+              <span>昵称</span>
+              <input value={shareName} onChange={(event) => setShareName(event.target.value)} placeholder="你的昵称" />
+            </label>
+            <div className="modal-actions">
+              <button className="ghost-button" onClick={() => setShareModalOpen(false)} type="button">
+                取消
+              </button>
+              <button className="primary-button" onClick={() => void confirmShare()} type="button">
+                发布并复制链接
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeVersion?.audioUrl && (
+        <div className="mini-player" aria-label="迷你播控栏">
+          <div className="mini-cover" aria-hidden="true">
+            <Music2 size={20} />
+          </div>
+          <div className="mini-meta">
+            <strong>{activeVersion.title}</strong>
+            <span>{listenState}</span>
+            <span className="mini-progress" aria-hidden="true">
+              <span style={{ width: `${playProgress || activeVersion.progress}%` }} />
+            </span>
+          </div>
+          <button
+            className="mini-toggle"
+            onClick={() => void handleListenVersion(activeVersion)}
+            type="button"
+            aria-label={playingVersionId ? "暂停播放" : "继续播放"}
+          >
+            {playingVersionId ? <Pause size={20} /> : <Play size={20} />}
+          </button>
+        </div>
       )}
     </main>
   );
@@ -3283,16 +3140,317 @@ function LibraryPage() {
   );
 }
 
+const TAB_ITEMS = [
+  { key: "home", label: "首页", icon: Home, href: "/" },
+  { key: "create", label: "创作", icon: Music2, href: "/create" },
+  { key: "library", label: "灵感库", icon: Library, href: "/library" },
+];
+
+function TabBar() {
+  const pathname = window.location.pathname;
+  const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
+
+  return (
+    <nav className="tab-bar" aria-label="主导航">
+      {TAB_ITEMS.map((item) => {
+        const active = isActive(item.href);
+        const Icon = item.icon;
+        return (
+          <a
+            key={item.key}
+            className="tab-item"
+            data-active={active}
+            href={item.href}
+            aria-current={active ? "page" : undefined}
+          >
+            <Icon size={22} />
+            <span className="tab-label">{item.label}</span>
+          </a>
+        );
+      })}
+    </nav>
+  );
+}
+
+function CommunityFeed() {
+  const [posts, setPosts] = useState<CommunityPostSummary[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    listCommunityPosts()
+      .then((data) => {
+        if (!cancelled) setPosts(data);
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err instanceof Error ? err.message : String(err));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return (
+    <main className="community-shell" aria-label="作品社区">
+      <header className="community-topbar">
+        <h1>作品社区</h1>
+        <a className="icon-link" href="/create" aria-label="去创作">
+          <ArrowLeft size={19} />
+        </a>
+      </header>
+
+      <div className="community-feed">
+        {loading && <p className="community-hint">加载中…</p>}
+        {error && <p className="community-hint">{error}</p>}
+        {!loading && !error && posts.length === 0 && (
+          <article className="empty-state">
+            <Music2 size={20} />
+            <strong>还没有分享的作品</strong>
+            <p>在创作页点击「分享」即可把作品发布到这里。</p>
+          </article>
+        )}
+        {posts.map((post) => (
+          <a className="community-card" key={post.id} href={`/community/post/${post.id}`}>
+            <div className="community-card-head">
+              <span className="community-avatar">
+                <UsersRound size={16} />
+              </span>
+              <div>
+                <strong>{post.authorName}</strong>
+                <span>{post.createdAt}</span>
+              </div>
+            </div>
+            <h2>{post.title}</h2>
+            {post.description && <p className="community-desc">{post.description}</p>}
+            <div className="community-card-meta">
+              <span>
+                <Music2 size={14} /> {post.demoVersionCount} 个版本
+              </span>
+              <span>
+                <Heart size={14} /> {post.likeCount}
+              </span>
+              <span>
+                <MessageCircle size={14} /> {post.commentCount}
+              </span>
+            </div>
+          </a>
+        ))}
+      </div>
+    </main>
+  );
+}
+
+function DemoVersionPlayer({ version }: { version: CommunityDemoVersion }) {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [playing, setPlaying] = useState(false);
+  const [progress, setProgress] = useState(0);
+
+  const toggle = () => {
+    const audio = audioRef.current;
+    if (!audio || !version.audioUrl) {
+      return;
+    }
+
+    if (audio.paused) {
+      void audio.play();
+    } else {
+      audio.pause();
+    }
+  };
+
+  return (
+    <div className="demo-version">
+      <button className="demo-play" onClick={toggle} type="button" disabled={!version.audioUrl} aria-label={playing ? "暂停" : "播放"}>
+        {playing ? <Pause size={18} /> : <Play size={18} />}
+      </button>
+      <div className="demo-meta">
+        <strong>{version.title}</strong>
+        {version.lyrics && <p className="demo-lyrics">{version.lyrics}</p>}
+      </div>
+      <audio
+        ref={audioRef}
+        src={version.audioUrl ?? undefined}
+        onPlay={() => setPlaying(true)}
+        onPause={() => setPlaying(false)}
+        onTimeUpdate={(event) => {
+          const el = event.currentTarget;
+          if (el.duration) {
+            setProgress((el.currentTime / el.duration) * 100);
+          }
+        }}
+        onEnded={() => {
+          setPlaying(false);
+          setProgress(0);
+        }}
+      />
+      {version.audioUrl && (
+        <span className="demo-progress" aria-hidden="true">
+          <span style={{ width: `${progress}%` }} />
+        </span>
+      )}
+    </div>
+  );
+}
+
+function CommunityPostView({ postId }: { postId: string }) {
+  const [post, setPost] = useState<CommunityPost | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [commentName, setCommentName] = useState("");
+  const [commentText, setCommentText] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const refresh = () => {
+    setLoading(true);
+    getCommunityPost(postId)
+      .then((data) => setPost(data))
+      .catch((err) => setError(err instanceof Error ? err.message : String(err)))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    refresh();
+  }, [postId]);
+
+  const handleLike = () => {
+    if (!post) {
+      return;
+    }
+
+    toggleCommunityLike(post.id)
+      .then((response) =>
+        setPost((current) => (current ? { ...current, likeCount: response.likeCount, likedByMe: response.likedByMe } : current)),
+      )
+      .catch(() => undefined);
+  };
+
+  const handleComment = () => {
+    if (!post || !commentText.trim()) {
+      return;
+    }
+
+    setSubmitting(true);
+    addCommunityComment(post.id, { authorName: commentName.trim() || "匿名", content: commentText.trim() })
+      .then((comment) => {
+        setPost((current) =>
+          current ? { ...current, comments: [...current.comments, comment], commentCount: current.commentCount + 1 } : current,
+        );
+        setCommentText("");
+      })
+      .catch((err) => window.alert(`评论失败：${err instanceof Error ? err.message : String(err)}`))
+      .finally(() => setSubmitting(false));
+  };
+
+  if (loading) {
+    return (
+      <main className="community-shell">
+        <p className="community-hint">加载中…</p>
+      </main>
+    );
+  }
+
+  if (error || !post) {
+    return (
+      <main className="community-shell">
+        <p className="community-hint">{error || "作品不存在"}</p>
+      </main>
+    );
+  }
+
+  return (
+    <main className="community-shell" aria-label="作品详情">
+      <header className="community-topbar">
+        <a className="icon-link" href="/community" aria-label="返回社区">
+          <ArrowLeft size={19} />
+        </a>
+        <h1>作品详情</h1>
+      </header>
+
+      <article className="post-detail">
+        <div className="post-author">
+          <span className="community-avatar">
+            <UsersRound size={16} />
+          </span>
+          <div>
+            <strong>{post.authorName}</strong>
+            <span>{post.createdAt}</span>
+          </div>
+        </div>
+        <h2 className="post-title">{post.title}</h2>
+        {post.description && <p className="community-desc">{post.description}</p>}
+
+        <button className={`like-button${post.likedByMe ? " active" : ""}`} onClick={handleLike} type="button">
+          <Heart size={16} /> {post.likeCount} 赞
+        </button>
+
+        <section className="post-versions" aria-label="作品版本">
+          <h3>创作版本（{post.demoVersions.length}）</h3>
+          {post.demoVersions.length === 0 ? (
+            <p className="community-hint">作者还没有生成可试听的版本。</p>
+          ) : (
+            post.demoVersions.map((version) => <DemoVersionPlayer key={version.taskId} version={version} />)
+          )}
+        </section>
+
+        <section className="post-comments" aria-label="评论区">
+          <h3>评论（{post.commentCount}）</h3>
+          <div className="comment-composer">
+            <input value={commentName} onChange={(event) => setCommentName(event.target.value)} placeholder="昵称（可选）" />
+            <textarea value={commentText} onChange={(event) => setCommentText(event.target.value)} rows={2} placeholder="说点什么…" />
+            <button className="primary-button" disabled={submitting || !commentText.trim()} onClick={handleComment} type="button">
+              发送
+            </button>
+          </div>
+          <div className="comment-list">
+            {post.comments.length === 0 ? (
+              <p className="community-hint">还没有评论，来抢沙发。</p>
+            ) : (
+              post.comments.map((comment) => (
+                <article className="comment-item" key={comment.id}>
+                  <strong>{comment.authorName}</strong>
+                  <span>{comment.createdAt}</span>
+                  <p>{comment.content}</p>
+                </article>
+              ))
+            )}
+          </div>
+        </section>
+      </article>
+    </main>
+  );
+}
+
+function CommunityPage() {
+  const pathname = window.location.pathname;
+  const postMatch = pathname.match(/^\/community\/post\/(.+)$/);
+
+  if (postMatch) {
+    return <CommunityPostView postId={decodeURIComponent(postMatch[1])} />;
+  }
+
+  return <CommunityFeed />;
+}
+
 export default function App() {
   const pathname = window.location.pathname;
 
-  if (pathname.startsWith("/create")) {
-    return <CreatePage />;
-  }
-
-  if (pathname.startsWith("/library")) {
-    return <LibraryPage />;
-  }
-
-  return <HomePage />;
+  return (
+    <>
+      {pathname.startsWith("/create") ? (
+        <CreatePage />
+      ) : pathname.startsWith("/community") ? (
+        <CommunityPage />
+      ) : pathname.startsWith("/library") ? (
+        <LibraryPage />
+      ) : (
+        <HomePage />
+      )}
+      <TabBar />
+    </>
+  );
 }

@@ -36,6 +36,92 @@ class BriefResponse(BaseModel):
     dataFlow: list[str]
 
 
+class ChatHistoryItem(BaseModel):
+    role: Literal["user", "ai"]
+    text: str
+
+
+class ChatRequest(BaseModel):
+    projectId: str = Field(default="local", max_length=120)
+    history: list[ChatHistoryItem] = Field(default_factory=list, max_length=60)
+    content: str = Field(default="", max_length=4000)
+
+
+class ChatResponse(BaseModel):
+    reply: str
+    source: str = "minimax"
+
+
+# ===== 作品社区 =====
+class CommunityDemoVersion(BaseModel):
+    taskId: str
+    title: str
+    audioUrl: str | None = None
+    lyrics: str | None = None
+    progress: int | None = None
+    createdAt: str | None = None
+
+
+class CommunityComment(BaseModel):
+    id: str
+    postId: str
+    parentId: str | None = None
+    authorName: str
+    content: str
+    createdAt: str
+
+
+class CommunityPost(BaseModel):
+    id: str
+    projectId: str
+    authorClientId: str
+    authorName: str
+    title: str
+    description: str
+    demoVersions: list[CommunityDemoVersion] = Field(default_factory=list)
+    comments: list[CommunityComment] = Field(default_factory=list)
+    likeCount: int = 0
+    likedByMe: bool = False
+    commentCount: int = 0
+    createdAt: str
+
+
+class CommunityPostSummary(BaseModel):
+    id: str
+    projectId: str
+    authorName: str
+    title: str
+    description: str
+    demoVersionCount: int = 0
+    likeCount: int = 0
+    likedByMe: bool = False
+    commentCount: int = 0
+    createdAt: str
+
+
+class CommunityPostCreate(BaseModel):
+    projectId: str
+    authorName: str
+    title: str
+    description: str = ""
+
+
+class CommunityCommentCreate(BaseModel):
+    authorName: str
+    content: str
+    parentId: str | None = None
+
+
+class CommunityLikeRequest(BaseModel):
+    clientId: str
+
+
+class CommunityLikeResponse(BaseModel):
+    postId: str
+    likeCount: int
+    likedByMe: bool
+
+
 class InspirationCreateRequest(BaseModel):
     projectId: str = Field(default="inbox", min_length=1, max_length=120)
     title: str = Field(min_length=1, max_length=120)

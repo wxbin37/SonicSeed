@@ -6,15 +6,22 @@ import os
 from uuid import uuid4
 
 import httpx
+import json
 
 from .env_loader import load_local_env
 from .schemas import (
     AnalysisTag,
     BriefRequest,
     BriefResponse,
+    ChatRequest,
     CollaborationSessionJoinRequest,
     CollaborationSessionResponse,
     CollaborationSessionUpdateRequest,
+    CommunityComment,
+    CommunityCommentCreate,
+    CommunityPost,
+    CommunityPostCreate,
+    CommunityPostSummary,
     DemoTaskRequest,
     DemoTaskResponse,
     InspirationCard,
@@ -34,6 +41,12 @@ from .storage import (
     insert_inspiration_record,
     join_share_link_record,
     list_collaboration_session_records,
+    list_community_comment_records,
+    list_community_post_records,
+    create_community_post_record,
+    insert_community_comment_record,
+    get_community_post_record,
+    toggle_community_like_record,
     list_demo_task_records,
     list_inspiration_records,
     list_project_records,
@@ -75,7 +88,91 @@ def is_ascii_token(value: str) -> bool:
     return True
 
 
-def build_brief(payload: BriefRequest) -> BriefResponse:
+MINIMAX_API_KEY = os.getenv("MINIMAX_API_KEY", "").strip()
+DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "").strip()
+DEEPSEEK_MODEL = "deepseek-v4-pro"
+DEEPSEEK_URL = "https://api.deepseek.com/chat/completions"
+TAG_LABELS = ["主题", "情绪", "场景", "适用位置"]
+
+_DEEPSEEK_SYSTEM_PROMPT = (
+    "你是一名专业的音乐创作 AI 助理。用户会给你一段创作素材（可能是对话、文字、哼唱描述、图片或语音转写）。"
+    "请分析这段素材，并只返回一个 JSON 对象，不要包含任何额外文字或 markdown 代码块。"
+    "JSON 结构必须严格如下：\n"
+    "{\n"
+    '  "title": "为这段灵感起一个简短且有画面感的名称（不超过 20 字）",\n'
+    '  "summary": "一句话总结这段素材的创作要点",\n'
+    '  "suggestedStyle": "建议的音乐风格 / 速度 / 编曲方向",\n'
+    '  "tags": {\n'
+    '    "主题": {"value": "核心主题", "detail": "主题说明"},\n'
+    '    "情绪": {"value": "情绪关键词", "detail": "情绪说明"},\n'
+    '    "场景": {"value": "画面 / 场景", "detail": "场景说明"},\n'
+    '    "适用位置": {"value": "在歌曲中的适用位置", "detail": "用法说明"}\n'
+    "  }\n"
+    "}\n"
+    "要求：四个分类（主题 / 情绪 / 场景 / 适用位置）都必须给出 value 和 detail，且必须贴合素材内容、具体可落地。"
+)
+
+
+def call_deepseek_brief(payload: BriefRequest) -> dict:
+    """调用 DeepSeek 分析素材，返回 BriefResponse 形状的 dict。失败时抛异常由 build_brief 回退。"""
+    if not DEEPSEEK_API_KEY:
+        raise RuntimeError("未配置 DEEPSEEK_API_KEY，跳过 DeepSeek 调用。")
+    text = payload.content or "新的灵感素材"
+    mode_labels = {
+        "dialogue": "对话",
+        "text": "文字",
+        "humming": "哼唱",
+        "image": "图片",
+        "voice": "语音",
+    }
+    user_prompt = (
+        f"素材类型：{mode_labels.get(payload.mode, payload.mode)}\n"
+        f"附件数量：{len(payload.attachments)}\n"
+        f"素材内容：\n{text}"
+    )
+    with httpx.Client(timeout=30) as client:
+        resp = client.post(
+            DEEPSEEK_URL,
+            headers={
+                "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": DEEPSEEK_MODEL,
+                "messages": [
+                    {"role": "system", "content": _DEEPSEEK_SYSTEM_PROMPT},
+                    {"role": "user", "content": user_prompt},
+                ],
+                "response_format": {"type": "json_object"},
+                "temperature": 0.6,
+            },
+        )
+        resp.raise_for_status()
+        data = resp.json()
+    content = data["choices"][0]["message"]["content"]
+    parsed = json.loads(content)
+
+    raw_tags = parsed.get("tags", {}) or {}
+    tags: list[AnalysisTag] = []
+    for label in TAG_LABELS:
+        entry = raw_tags.get(label) or {}
+        if isinstance(entry, dict):
+            value = entry.get("value", "")
+            detail = entry.get("detail", "")
+        else:
+            value, detail = str(entry), ""
+        tags.append(AnalysisTag(label=label, value=value, detail=detail))
+
+    return {
+        "title": parsed.get("title", "新建灵感"),
+        "summary": parsed.get("summary", ""),
+        "tags": tags,
+        "suggestedStyle": parsed.get("suggestedStyle", ""),
+        "dataFlow": DATA_FLOW,
+    }
+
+
+def _keyword_brief_fallback(payload: BriefRequest) -> BriefResponse:
     text = payload.content or "新的灵感素材"
     city_tone = any(keyword in text for keyword in ["城市", "出租车", "雨", "告别", "离开", "再见"])
     attachment_count = len(payload.attachments)
@@ -124,6 +221,14 @@ def build_brief(payload: BriefRequest) -> BriefResponse:
         suggestedStyle="都市流行 / 中慢速 / 钢琴与电子氛围" if city_tone else "温暖流行 / 轻鼓组 / 留白编曲",
         dataFlow=DATA_FLOW,
     )
+
+
+def build_brief(payload: BriefRequest) -> BriefResponse:
+    try:
+        return BriefResponse(**call_deepseek_brief(payload))
+    except Exception as exc:  # noqa: BLE001 - 任何失败都回退，保证 UI 永远有标签
+        print(f"[build_brief] DeepSeek 调用失败，回退关键词 mock：{exc}")
+        return _keyword_brief_fallback(payload)
 
 
 def list_projects() -> list[ProjectSummary]:
@@ -279,7 +384,7 @@ def call_minimax_music(payload: DemoTaskRequest) -> DemoTaskResponse:
 
 
 def call_minimax_music_with_task_id(payload: DemoTaskRequest, task_id: str) -> DemoTaskResponse:
-    api_key = os.getenv("MINIMAX_API_KEY", "").strip()
+    api_key = MINIMAX_API_KEY
     if not api_key:
         return DemoTaskResponse(
             taskId=task_id,
@@ -387,6 +492,96 @@ def call_minimax_music_with_task_id(payload: DemoTaskRequest, task_id: str) -> D
     )
 
 
+# ---------------------------------------------------------------------------
+# MiniMax 文本对话（创作协作）——用于聊天回复
+# ---------------------------------------------------------------------------
+MINIMAX_TEXT_BASE_URL = "https://api.minimaxi.com"
+MINIMAX_TEXT_MODEL = "MiniMax-Text-01"
+MINIMAX_TEXT_ENDPOINT = "/v1/text/chatcompletion_v2"
+
+_MINIMAX_CHAT_SYSTEM_PROMPT = (
+    "你是 Sonic Seed 的 AI 音乐创作协作伙伴。用户会给你灵感素材，例如歌词、旋律描述、故事、"
+    "修改反馈，或图片 / 音频参考。请结合完整对话历史，以协作者的口吻给出具体、可落地的回复："
+    "可以是补充的灵感点子、创作方向建议、结构 / 编曲 / 歌词上的具体修改意见，或下一步该做什么。"
+    "用简体中文，语气像一起写歌的搭档，不要堆砌客套话，直接给有用的内容。"
+)
+
+
+def _extract_minimax_chat_content(data: dict[str, object]) -> str:
+    """兼容 MiniMax 不同版本响应结构，尽量取出回复文本。"""
+    try:
+        choice = (data.get("choices") or [{}])[0]
+        if isinstance(choice, dict):
+            if isinstance(choice.get("message"), dict) and choice["message"].get("content"):
+                return str(choice["message"]["content"])
+            messages = choice.get("messages") or []
+            if messages and isinstance(messages[0], dict) and messages[0].get("content"):
+                return str(messages[0]["content"])
+    except (KeyError, IndexError, TypeError):
+        pass
+    output = data.get("output")
+    if isinstance(output, dict) and output.get("text"):
+        return str(output["text"])
+    if isinstance(data.get("reply"), str) and data["reply"]:
+        return data["reply"]
+    return ""
+
+
+def call_minimax_chat(payload: ChatRequest) -> str:
+    """调用 MiniMax 文本大模型，根据用户当前输入 + 历史生成协作回复。失败时抛异常。"""
+    api_key = MINIMAX_API_KEY
+    if not api_key or not is_ascii_token(api_key):
+        raise RuntimeError("未配置有效的 MINIMAX_API_KEY，无法调用 MiniMax 文本对话。")
+
+    base_url = os.getenv("MINIMAX_TEXT_BASE_URL", MINIMAX_TEXT_BASE_URL).rstrip("/")
+    model = os.getenv("MINIMAX_TEXT_MODEL", MINIMAX_TEXT_MODEL)
+    group_id = os.getenv("MINIMAX_GROUP_ID", "").strip()
+
+    messages: list[dict[str, str]] = [
+        {"role": "system", "content": _MINIMAX_CHAT_SYSTEM_PROMPT}
+    ]
+    for item in payload.history:
+        role = "assistant" if item.role == "ai" else "user"
+        text = (item.text or "").strip()
+        if text:
+            messages.append({"role": role, "content": text})
+
+    content = (payload.content or "").strip()
+    if not content:
+        raise RuntimeError("对话内容为空，无法调用 MiniMax。")
+    messages.append({"role": "user", "content": content})
+
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+    if group_id:
+        headers["MiniMax-Group-Id"] = group_id
+
+    try:
+        response = httpx.post(
+            f"{base_url}{MINIMAX_TEXT_ENDPOINT}",
+            json={
+                "model": model,
+                "messages": messages,
+                "temperature": 0.8,
+                "max_tokens": 1200,
+                "stream": False,
+            },
+            headers=headers,
+            timeout=60,
+        )
+        response.raise_for_status()
+        data = response.json()
+    except httpx.HTTPError as error:
+        raise RuntimeError(f"MiniMax 文本对话请求失败：{error}") from error
+
+    reply = _extract_minimax_chat_content(data)
+    if not reply:
+        raise RuntimeError("MiniMax 文本对话返回内容为空。")
+    return reply
+
+
 def create_demo_task(payload: DemoTaskRequest) -> DemoTaskResponse:
     result = call_minimax_music(payload)
     ensure_project(payload.projectId, payload.referenceBrief.title, "生成版本")
@@ -480,3 +675,24 @@ def get_collaboration_session(session_id: str) -> CollaborationSessionResponse |
 
 def update_collaboration_session(session_id: str, payload: CollaborationSessionUpdateRequest) -> CollaborationSessionResponse | None:
     return update_collaboration_session_record(session_id, payload)
+
+
+# ===== 作品社区 =====
+def create_community_post(payload: CommunityPostCreate, client_id: str) -> CommunityPost:
+    return create_community_post_record(payload, client_id)
+
+
+def list_community_posts(client_id: str | None = None) -> list[CommunityPostSummary]:
+    return list_community_post_records(client_id)
+
+
+def get_community_post(post_id: str, client_id: str | None = None) -> CommunityPost | None:
+    return get_community_post_record(post_id, client_id)
+
+
+def add_community_comment(post_id: str, payload: CommunityCommentCreate, client_id: str) -> CommunityComment:
+    return insert_community_comment_record(post_id, client_id, payload.authorName, payload.content, payload.parentId)
+
+
+def toggle_community_like(post_id: str, client_id: str) -> tuple[int, bool]:
+    return toggle_community_like_record(post_id, client_id)
