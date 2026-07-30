@@ -108,6 +108,7 @@ type ChatMessage = {
   text: string;
   attachments?: LocalAttachment[];
   audioUrl?: string;
+  pending?: boolean;
 };
 
 type DemoVersion = {
@@ -1664,6 +1665,8 @@ function CreatePage() {
     }
 
     const savedProjectId = ensureProject(messageText);
+    const aiMessageId = `ai_pending_${Date.now()}`;
+    setChatThinking(true);
     setMessages((current) => [
       ...current,
       {
@@ -1672,6 +1675,13 @@ function CreatePage() {
         label: "我",
         text: messageText,
         attachments: sentAttachments,
+      },
+      {
+        id: aiMessageId,
+        role: "ai",
+        label: "AI",
+        text: "思考中...",
+        pending: true,
       },
     ]);
     setDraft("");
@@ -1685,32 +1695,35 @@ function CreatePage() {
       .filter((message) => message.text.trim());
 
     try {
-      setChatThinking(true);
       const chatContent = sentText || "（已发送附件素材，请结合上下文给建议）";
       const { reply } = await chatWithMinimax({
-        projectId: activeProject?.id ?? "local",
+        projectId: savedProjectId || activeProject?.id || "local",
         history,
         content: chatContent,
       });
-      setMessages((current) => [
-        ...current,
-        {
-          id: `ai_${Date.now()}`,
-          role: "ai",
-          label: "AI",
-          text: reply,
-        },
-      ]);
+      setMessages((current) =>
+        current.map((message) =>
+          message.id === aiMessageId
+            ? {
+                ...message,
+                text: reply,
+                pending: false,
+              }
+            : message,
+        ),
+      );
     } catch {
-      setMessages((current) => [
-        ...current,
-        {
-          id: `ai_${Date.now()}`,
-          role: "ai",
-          label: "AI",
-          text: "（对话助手暂时不可用，请稍后再试）",
-        },
-      ]);
+      setMessages((current) =>
+        current.map((message) =>
+          message.id === aiMessageId
+            ? {
+                ...message,
+                text: "（对话助手暂时不可用，请稍后再试）",
+                pending: false,
+              }
+            : message,
+        ),
+      );
     } finally {
       setChatThinking(false);
     }
@@ -2225,12 +2238,21 @@ function CreatePage() {
                     </div>
                   ) : (
                     messages.map((message) => (
-                    <article className={`chat-message ${message.role}`} key={message.id}>
+                    <article className={`chat-message ${message.role}${message.pending ? " pending" : ""}`} key={message.id}>
                       <span>
                         {message.role === "ai" ? <Bot size={14} /> : <UsersRound size={14} />}
                         {message.label}
                       </span>
-                      <p>{message.text}</p>
+                      {message.pending ? (
+                        <p className="thinking-message">
+                          <span>思考中</span>
+                          <i />
+                          <i />
+                          <i />
+                        </p>
+                      ) : (
+                        <p>{message.text}</p>
+                      )}
                       {message.audioUrl && (
                         <div className="message-audio-result">
                           <span>
