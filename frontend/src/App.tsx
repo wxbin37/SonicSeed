@@ -1016,7 +1016,6 @@ function CreatePage() {
   const [shareName, setShareName] = useState("");
   const [shareDesc, setShareDesc] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
-  const [projectHasConversation, setProjectHasConversation] = useState(false);
   const [selectedInspirations, setSelectedInspirations] = useState<InspirationCard[]>(cachedSelectedInspirations);
   const [draft, setDraft] = useState(() =>
     cachedSelectedInspirations.length
@@ -1235,15 +1234,12 @@ function CreatePage() {
 
     setLoadedWorkspaceProjectId("");
     projectWorkspaceSyncRef.current = "";
-    resetWorkbenchForProject("正在打开创作历史");
-    setProjectHasConversation(false);
+    setAnalysisState("正在恢复完整对话");
 
     const localWorkspaces = readStorage<Record<string, WorkbenchSnapshot>>(STORAGE_KEYS.workspaces, {});
     const localSnapshot = localWorkspaces[activeProject.id] as WorkbenchSnapshot | undefined;
-    const localMessages = localSnapshot ? readWorkbenchArray<ChatMessage>(localSnapshot, "messages") ?? [] : [];
 
     if (localSnapshot && hasWorkbenchContent(localSnapshot)) {
-      setProjectHasConversation(localMessages.length > 0);
       applyWorkbenchSnapshot(localSnapshot, "已恢复本地对话");
     }
 
@@ -1256,16 +1252,14 @@ function CreatePage() {
 
           const remoteWorkbench = workspace?.workbench;
           if (remoteWorkbench && hasWorkbenchContent(remoteWorkbench)) {
-            const remoteMessages = readWorkbenchArray<ChatMessage>(remoteWorkbench, "messages") ?? [];
-            setProjectHasConversation(remoteMessages.length > 0);
             applyWorkbenchSnapshot(remoteWorkbench, "已恢复完整对话");
           } else if (!localSnapshot) {
-            setAnalysisState("已打开创作历史");
+            resetWorkbenchForProject();
           }
         })
         .catch(() => {
           if (!cancelled && !localSnapshot) {
-            setAnalysisState("已打开创作历史");
+            resetWorkbenchForProject("完整对话恢复失败");
           }
         })
         .finally(() => {
@@ -1279,6 +1273,9 @@ function CreatePage() {
       };
     }
 
+    if (!localSnapshot || !hasWorkbenchContent(localSnapshot)) {
+      resetWorkbenchForProject();
+    }
     setLoadedWorkspaceProjectId(projectId);
 
     return () => {
@@ -2251,23 +2248,9 @@ function CreatePage() {
 
             <div className="workbench-body">
               <div className="conversation-area">
-                <div ref={chatWindowRef} className={`chat-window ${messages.length === 0 ? "is-empty" : ""}`} aria-label="创作对话">
-                  {messages.length === 0 && !projectHasConversation ? (
-                    <div className="chat-empty">
-                      <div className="chat-empty-notes" aria-hidden="true">
-                        <span className="chat-empty-note note-a">♪</span>
-                        <span className="chat-empty-note note-b">♫</span>
-                        <span className="chat-empty-note note-c">♬</span>
-                        <span className="chat-empty-note note-d">♩</span>
-                        <span className="chat-empty-note note-e">𝄞</span>
-                        <span className="chat-empty-note note-f">♭</span>
-                        <span className="chat-empty-note note-g">♯</span>
-                        <span className="chat-empty-note note-h">♮</span>
-                        <span className="chat-empty-note note-i">♫</span>
-                        <span className="chat-empty-note note-j">♪</span>
-                      </div>
-                      <strong>今天想写什么声音?</strong>
-                    </div>
+                <div ref={chatWindowRef} className="chat-window" aria-label="创作对话">
+                  {messages.length === 0 ? (
+                    <p className="chat-empty">把灵感发给我，我们一起写歌。可以写歌词、描述旋律、贴修改意见，或上传旧 Demo。</p>
                   ) : (
                     messages.map((message) => (
                     <article className={`chat-message ${message.role}${message.pending ? " pending" : ""}`} key={message.id}>
