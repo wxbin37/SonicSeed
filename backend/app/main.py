@@ -1,4 +1,3 @@
-import os
 from typing import Optional
 from uuid import uuid4
 
@@ -63,6 +62,15 @@ SUPPORTED_AUDIO_TYPES = {
     "audio/x-wav",
     "audio/webm",
 }
+SUPPORTED_IMAGE_TYPES = {
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+    "image/gif",
+    "image/heic",
+    "image/heif",
+}
+SUPPORTED_UPLOAD_TYPES = SUPPORTED_AUDIO_TYPES | SUPPORTED_IMAGE_TYPES
 
 app = FastAPI(
     title="Sonic Seed API",
@@ -134,10 +142,10 @@ def save_inspiration(payload: InspirationCreateRequest) -> InspirationCard:
 
 
 @app.post("/api/uploads", response_model=UploadResponse)
-async def upload_audio(file: UploadFile = File(...)) -> UploadResponse:
+async def upload_attachment(file: UploadFile = File(...)) -> UploadResponse:
     content_type = file.content_type or "application/octet-stream"
-    if content_type not in SUPPORTED_AUDIO_TYPES:
-        raise HTTPException(status_code=415, detail="Unsupported audio format")
+    if content_type not in SUPPORTED_UPLOAD_TYPES:
+        raise HTTPException(status_code=415, detail="Unsupported audio or image format")
 
     body = await file.read(MAX_UPLOAD_BYTES + 1)
     if len(body) > MAX_UPLOAD_BYTES:
@@ -152,8 +160,12 @@ async def upload_audio(file: UploadFile = File(...)) -> UploadResponse:
         filename=filename,
         contentType=content_type,
         sizeBytes=len(body),
-        normalizedFormat="mp3",
-        nextStep="Run FFmpeg normalization, melody analysis, then create a DeepSeek Brief.",
+        normalizedFormat="mp3" if content_type in SUPPORTED_AUDIO_TYPES else content_type.split("/", 1)[1],
+        nextStep=(
+            "Run FFmpeg normalization, melody analysis, then create a DeepSeek Brief."
+            if content_type in SUPPORTED_AUDIO_TYPES
+            else "Store the image as visual inspiration input."
+        ),
     )
 
 

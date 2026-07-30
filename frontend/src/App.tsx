@@ -66,6 +66,7 @@ import {
   saveProject,
   saveProjectWorkspace,
   toggleCommunityLike,
+  uploadAttachment,
   uploadAudio,
   type AnalysisTag,
   type BriefAttachment,
@@ -88,6 +89,15 @@ type LocalAttachment = BriefAttachment & {
   size: string;
   status: string;
   previewUrl?: string;
+};
+
+type LibraryDraftAttachment = {
+  id: string;
+  file: File;
+  type: "audio" | "image";
+  previewUrl: string;
+  uploadId?: string;
+  status: "ready" | "uploading" | "uploaded" | "error";
 };
 
 type ChatMessage = {
@@ -3031,6 +3041,13 @@ function LibraryPage() {
   const [graphTagFilter, setGraphTagFilter] = useState("");
   const [actionMessage, setActionMessage] = useState("");
   const [graphZoom, setGraphZoom] = useState(1);
+  const [newInspirationOpen, setNewInspirationOpen] = useState(false);
+  const [newInspirationTitle, setNewInspirationTitle] = useState("");
+  const [newInspirationContent, setNewInspirationContent] = useState("");
+  const [newInspirationAttachments, setNewInspirationAttachments] = useState<LibraryDraftAttachment[]>([]);
+  const [newInspirationSaving, setNewInspirationSaving] = useState(false);
+  const [newInspirationError, setNewInspirationError] = useState("");
+  const newInspirationAttachmentsRef = useRef<LibraryDraftAttachment[]>([]);
 
   useEffect(() => {
     if (!hasApiConnection()) return;
@@ -3055,6 +3072,29 @@ function LibraryPage() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    newInspirationAttachmentsRef.current = newInspirationAttachments;
+  }, [newInspirationAttachments]);
+
+  useEffect(() => {
+    return () => {
+      newInspirationAttachmentsRef.current.forEach((attachment) => URL.revokeObjectURL(attachment.previewUrl));
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!newInspirationOpen) return undefined;
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape" && !newInspirationSaving) {
+        closeNewInspirationModal();
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [newInspirationAttachments, newInspirationOpen, newInspirationSaving]);
 
   const activeFilterGroups = useMemo(
     () =>
@@ -3159,6 +3199,160 @@ function LibraryPage() {
     setGraphZoom(Math.min(1.3, Math.max(0.7, Number(nextZoom.toFixed(2)))));
   }
 
+  function resetNewInspirationDraft() {
+    newInspirationAttachmentsRef.current.forEach((attachment) => URL.revokeObjectURL(attachment.previewUrl));
+    newInspirationAttachmentsRef.current = [];
+    setNewInspirationTitle("");
+    setNewInspirationContent("");
+    setNewInspirationAttachments([]);
+    setNewInspirationError("");
+  }
+
+  function closeNewInspirationModal() {
+    if (newInspirationSaving) {
+      return;
+    }
+
+    resetNewInspirationDraft();
+    setNewInspirationOpen(false);
+  }
+
+  function handleNewInspirationBackdropClick(event: ReactMouseEvent<HTMLDivElement>) {
+    if (event.target === event.currentTarget) {
+      closeNewInspirationModal();
+    }
+  }
+
+  function handleNewInspirationFiles(event: ChangeEvent<HTMLInputElement>, type: LibraryDraftAttachment["type"]) {
+    const files = Array.from(event.target.files ?? []);
+    event.target.value = "";
+
+    if (!files.length) {
+      return;
+    }
+
+    const supportedFiles = files.filter((file) => file.type.startsWith(`${type}/`));
+    if (supportedFiles.length !== files.length) {
+      setNewInspirationError(type === "audio" ? "请添加音频文件。" : "请添加图片文件。");
+    } else {
+      setNewInspirationError("");
+    }
+
+    const nextAttachments = supportedFiles.map((file, index) => ({
+      id: `library_draft_${Date.now()}_${index}_${file.name}`,
+      file,
+      type,
+      previewUrl: URL.createObjectURL(file),
+      status: "ready" as const,
+    }));
+
+    if (nextAttachments.length) {
+      setNewInspirationAttachments((current) => [...current, ...nextAttachments]);
+    }
+  }
+
+  function removeNewInspirationAttachment(id: string) {
+    setNewInspirationAttachments((current) => {
+      const removed = current.find((attachment) => attachment.id === id);
+      if (removed) {
+        URL.revokeObjectURL(removed.previewUrl);
+      }
+
+      return current.filter((attachment) => attachment.id !== id);
+    });
+  }
+
+  async function handleSaveNewInspiration() {
+    const title = newInspirationTitle.trim();
+    const content = newInspirationContent.trim();
+
+    if (!content && !newInspirationAttachments.length) {
+      setNewInspirationError("请先添加文字内容、音频或图片。");
+      return;
+    }
+
+    setNewInspirationSaving(true);
+    setNewInspirationError("");
+
+    const uploadedAttachments: BriefAttachment[] = [];
+
+    try {
+      for (const attachment of newInspirationAttachments) {
+        setNewInspirationAttachments((current) =>
+          current.map((item) => (item.id === attachment.id ? { ...item, status: "uploading" } : item)),
+        );
+
+        try {
+          const result = await uploadAttachment(attachment.file);
+          uploadedAttachments.push({
+            type: attachment.type,
+            name: result.filename || attachment.file.name,
+            uploadId: result.uploadId,
+          });
+          setNewInspirationAttachments((current) =>
+            current.map((item) =>
+              item.id === attachment.id
+                ? {
+                    ...item,
+                    uploadId: result.uploadId,
+                    status: "uploaded",
+                  }
+                : item,
+            ),
+          );
+        } catch {
+          setNewInspirationAttachments((current) =>
+            current.map((item) => (item.id === attachment.id ? { ...item, status: "error" } : item)),
+          );
+          throw new Error("upload-failed");
+        }
+      }
+
+      const attachmentTitle = uploadedAttachments[0]
+        ? `${uploadedAttachments[0].type === "audio" ? "音频" : "图片"}灵感：${uploadedAttachments[0].name.replace(/\.[^/.]+$/, "")}`
+        : "";
+      const finalTitle = (title || summarizePrompt(content || attachmentTitle || "新的灵感")).slice(0, 120);
+      let tags: AnalysisTag[] = [];
+
+      try {
+        const brief = await analyzeInspiration({
+          projectId: "inbox",
+          mode: inferMode(uploadedAttachments),
+          content: content || finalTitle,
+          attachments: toBriefAttachments(uploadedAttachments),
+        });
+        tags = brief.tags;
+      } catch {
+        tags = [];
+      }
+
+      const card = await saveInspiration({
+        projectId: "inbox",
+        title: finalTitle,
+        content,
+        attachments: toBriefAttachments(uploadedAttachments),
+        tags,
+      });
+      const cachedRecords = readCachedRecords<InspirationRecord>(LIBRARY_CACHE_KEY);
+      writeCachedRecords(LIBRARY_CACHE_KEY, [card, ...cachedRecords.filter((record) => record.id !== card.id)]);
+
+      const cachedProjects = readCachedRecords<ProjectRecord>(PROJECT_CACHE_KEY);
+      const projectTitles = new Map(cachedProjects.map((project) => [project.id, project.title]));
+      const mappedCard = mapInspirationRecord(card, projectTitles);
+      setLibraryInspirations((current) => addRelationCounts([mappedCard, ...current.filter((item) => item.id !== mappedCard.id)]));
+      setSyncState(hasApiConnection() ? "已保存到 SQLite" : "已保存到本地");
+      setActionMessage(`已新增灵感「${finalTitle}」`);
+      resetNewInspirationDraft();
+      setNewInspirationOpen(false);
+    } catch {
+      setNewInspirationError("保存失败，请检查附件格式或稍后重试。");
+    } finally {
+      setNewInspirationSaving(false);
+    }
+  }
+
+  const canSaveNewInspiration = Boolean(newInspirationContent.trim() || newInspirationAttachments.length);
+
   return (
     <main className="library-shell" aria-label="灵感库">
       <header className="studio-topbar library-topbar">
@@ -3175,10 +3369,10 @@ function LibraryPage() {
       </header>
 
       <div className="library-command-row">
-        <a className="library-add-inspiration" href="/create">
+        <button className="library-add-inspiration" onClick={() => setNewInspirationOpen(true)} type="button">
           <Plus size={24} />
           <strong>新增灵感</strong>
-        </a>
+        </button>
 
         <section className="library-controls" aria-label="灵感库工具栏">
         <div className="library-search">
@@ -3243,6 +3437,121 @@ function LibraryPage() {
         </div>
         </section>
       </div>
+
+      {newInspirationOpen && (
+        <div className="library-inspiration-modal-layer" onClick={handleNewInspirationBackdropClick}>
+          <section
+            aria-labelledby="library-new-inspiration-title"
+            aria-modal="true"
+            className="library-inspiration-modal"
+            role="dialog"
+          >
+            <header className="library-inspiration-modal-head">
+              <div>
+                <span>灵感库</span>
+                <h2 id="library-new-inspiration-title">新增灵感</h2>
+              </div>
+              <button aria-label="关闭新增灵感弹窗" disabled={newInspirationSaving} onClick={closeNewInspirationModal} type="button">
+                <X size={18} />
+              </button>
+            </header>
+
+            <div className="library-inspiration-modal-body">
+              <label className="library-inspiration-field">
+                <span>标题</span>
+                <input
+                  maxLength={80}
+                  onChange={(event) => setNewInspirationTitle(event.target.value)}
+                  placeholder="未填写时自动生成"
+                  type="text"
+                  value={newInspirationTitle}
+                />
+              </label>
+
+              <label className="library-inspiration-field">
+                <span>文字内容</span>
+                <textarea
+                  maxLength={4000}
+                  onChange={(event) => setNewInspirationContent(event.target.value)}
+                  placeholder="写下一句歌词、一个画面或一段想法"
+                  rows={6}
+                  value={newInspirationContent}
+                />
+              </label>
+
+              <div className="library-inspiration-upload-row" aria-label="添加附件">
+                <label className="library-inspiration-upload">
+                  <FileAudio size={20} />
+                  <span>添加音频</span>
+                  <input accept="audio/*" multiple onChange={(event) => handleNewInspirationFiles(event, "audio")} type="file" />
+                </label>
+                <label className="library-inspiration-upload">
+                  <ImageIcon size={20} />
+                  <span>添加图片</span>
+                  <input accept="image/*" multiple onChange={(event) => handleNewInspirationFiles(event, "image")} type="file" />
+                </label>
+              </div>
+
+              {newInspirationAttachments.length > 0 && (
+                <div className="library-draft-attachments" aria-label="待保存附件">
+                  {newInspirationAttachments.map((attachment) => {
+                    const Icon = attachment.type === "audio" ? FileAudio : ImageIcon;
+                    const statusLabel =
+                      attachment.status === "uploading"
+                        ? "上传中"
+                        : attachment.status === "uploaded"
+                          ? "已上传"
+                          : attachment.status === "error"
+                            ? "上传失败"
+                            : "待上传";
+                    return (
+                      <article className="library-draft-attachment" data-type={attachment.type} key={attachment.id}>
+                        <div className="library-draft-attachment-info">
+                          <Icon size={18} />
+                          <div>
+                            <strong>{attachment.file.name}</strong>
+                            <span>{formatBytes(attachment.file.size)} · {statusLabel}</span>
+                          </div>
+                        </div>
+                        {attachment.type === "audio" ? (
+                          <audio controls src={attachment.previewUrl} />
+                        ) : (
+                          <img alt={attachment.file.name} src={attachment.previewUrl} />
+                        )}
+                        <button
+                          aria-label={`移除${attachment.file.name}`}
+                          disabled={newInspirationSaving}
+                          onClick={() => removeNewInspirationAttachment(attachment.id)}
+                          type="button"
+                        >
+                          <X size={15} />
+                        </button>
+                      </article>
+                    );
+                  })}
+                </div>
+              )}
+
+              {newInspirationError && <p className="library-inspiration-error">{newInspirationError}</p>}
+            </div>
+
+            <footer className="library-inspiration-modal-actions">
+              <button className="library-inspiration-cancel" disabled={newInspirationSaving} onClick={closeNewInspirationModal} type="button">
+                取消
+              </button>
+              <button
+                className="library-inspiration-save"
+                disabled={newInspirationSaving || !canSaveNewInspiration}
+                onClick={handleSaveNewInspiration}
+                type="button"
+              >
+                {newInspirationSaving ? <Loader2 className="spin" size={17} /> : <Check size={17} />}
+                保存到灵感库
+              </button>
+            </footer>
+          </section>
+        </div>
+      )}
 
       <section className="library-summary">
         <div>

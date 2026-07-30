@@ -528,7 +528,7 @@ export async function updateCollaborationSession(
   return response.json() as Promise<CollaborationSession>;
 }
 
-export async function uploadAudio(file: File): Promise<UploadResponse> {
+export async function uploadAttachment(file: File): Promise<UploadResponse> {
   if (!API_BASE_URL) {
     await new Promise((resolve) => setTimeout(resolve, 360));
     return {
@@ -537,7 +537,7 @@ export async function uploadAudio(file: File): Promise<UploadResponse> {
       contentType: file.type || "application/octet-stream",
       sizeBytes: file.size,
       normalizedFormat: "local-preview",
-      nextStep: "连接 Python 后端后会执行音频校验、转码和旋律分析。",
+      nextStep: "连接 Python 后端后会保存附件并执行对应素材分析。",
     };
   }
 
@@ -554,6 +554,10 @@ export async function uploadAudio(file: File): Promise<UploadResponse> {
   }
 
   return response.json() as Promise<UploadResponse>;
+}
+
+export async function uploadAudio(file: File): Promise<UploadResponse> {
+  return uploadAttachment(file);
 }
 
 export async function saveInspiration(payload: InspirationCreateRequest): Promise<InspirationCard> {
