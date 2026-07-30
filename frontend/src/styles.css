@@ -2177,6 +2177,51 @@ h3 {
   line-height: 32px;
 }
 
+.library-command-row {
+  display: grid;
+  grid-template-columns: minmax(190px, 1fr) minmax(0, 2fr);
+  align-items: stretch;
+  gap: var(--space-400);
+}
+
+.library-add-inspiration {
+  display: flex;
+  min-height: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-400);
+  border: 1px solid var(--button-highlight);
+  border-radius: var(--corner-default);
+  background: var(--button-highlight);
+  color: var(--button-icon);
+  box-shadow: var(--shadow-button);
+  transition: border-color 180ms ease, background 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+}
+
+.library-add-inspiration svg {
+  width: 56px;
+  height: 56px;
+  border: 1px solid rgba(0, 0, 0, 0.24);
+  border-radius: 50%;
+  padding: 14px;
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.library-add-inspiration strong {
+  font-size: 20px;
+  line-height: 26px;
+  font-weight: 650;
+}
+
+.library-add-inspiration:hover,
+.library-add-inspiration:focus-visible {
+  border-color: var(--button-highlight);
+  background: var(--button-highlight);
+  color: var(--button-icon);
+  box-shadow: 0 0 0 5px rgba(0, 242, 133, 0.08), 0 16px 34px rgba(0, 242, 133, 0.2);
+  transform: translateY(-1px);
+}
+
 .library-controls {
   display: grid;
   grid-template-columns: minmax(260px, 1fr) auto;
@@ -3401,6 +3446,27 @@ h3 {
 @media (max-width: 720px) {
   .library-shell {
     padding-bottom: 184px;
+  }
+
+  .library-command-row {
+    grid-template-columns: 1fr;
+    gap: var(--space-300);
+  }
+
+  .library-add-inspiration {
+    min-height: 64px;
+    border-radius: var(--corner-s);
+  }
+
+  .library-add-inspiration svg {
+    width: 44px;
+    height: 44px;
+    padding: 10px;
+  }
+
+  .library-add-inspiration strong {
+    font-size: 18px;
+    line-height: 24px;
   }
 
   .library-controls {

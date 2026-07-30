@@ -3145,7 +3145,13 @@ function LibraryPage() {
         </a>
       </header>
 
-      <section className="library-controls" aria-label="灵感库工具栏">
+      <div className="library-command-row">
+        <a className="library-add-inspiration" href="/create">
+          <Plus size={24} />
+          <strong>新增灵感</strong>
+        </a>
+
+        <section className="library-controls" aria-label="灵感库工具栏">
         <div className="library-search">
           <Search size={18} />
           <input
@@ -3206,7 +3212,8 @@ function LibraryPage() {
             </div>
           )}
         </div>
-      </section>
+        </section>
+      </div>
 
       <section className="library-summary">
         <div>
