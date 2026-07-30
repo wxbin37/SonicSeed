@@ -730,6 +730,16 @@ function readWorkbenchString(workbench: Record<string, unknown>, key: keyof Work
   return typeof value === "string" ? value : null;
 }
 
+function hasWorkbenchContent(workbench: Record<string, unknown>) {
+  return Boolean(
+    readWorkbenchArray<ChatMessage>(workbench, "messages")?.length ||
+      readWorkbenchArray<AnalysisTag>(workbench, "analysisTags")?.length ||
+      readWorkbenchArray<DemoVersion>(workbench, "versions")?.length ||
+      readWorkbenchString(workbench, "draft") ||
+      workbench.brief,
+  );
+}
+
 const LIBRARY_CACHE_KEY = "sonic-seed.library";
 const PROJECT_CACHE_KEY = "sonic-seed.projects";
 
@@ -1211,40 +1221,69 @@ function CreatePage() {
       return;
     }
 
+    let cancelled = false;
+    const projectId = activeProject.id;
+
     if (newProjectRef.current === activeProject.id) {
       setLoadedWorkspaceProjectId(activeProject.id);
       projectWorkspaceSyncRef.current = "";
       newProjectRef.current = "";
-      return;
+      return () => {
+        cancelled = true;
+      };
     }
 
     setLoadedWorkspaceProjectId("");
-    // 关闭"进入项目自动恢复对话"：每次进入都从空白聊天框开始
-    resetWorkbenchForProject();
-    // 把同步标记置为当前（空白）状态，避免下方自动保存把已存的旧对话覆盖成空
-    projectWorkspaceSyncRef.current = JSON.stringify({
-      projectId: activeProject.id,
-      clientId,
-      snapshot: buildWorkbenchSnapshot(),
-    });
+    projectWorkspaceSyncRef.current = "";
+    resetWorkbenchForProject("正在打开创作历史");
+    setProjectHasConversation(false);
 
-    // 探测该项目是否曾有过对话：有则隐藏"今天想写什么声音?"占位（仅全新项目显示）
     const localWorkspaces = readStorage<Record<string, WorkbenchSnapshot>>(STORAGE_KEYS.workspaces, {});
     const localSnapshot = localWorkspaces[activeProject.id] as WorkbenchSnapshot | undefined;
-    setProjectHasConversation(Array.isArray(localSnapshot?.messages) && localSnapshot!.messages.length > 0);
+    const localMessages = localSnapshot ? readWorkbenchArray<ChatMessage>(localSnapshot, "messages") ?? [] : [];
+
+    if (localSnapshot && hasWorkbenchContent(localSnapshot)) {
+      setProjectHasConversation(localMessages.length > 0);
+      applyWorkbenchSnapshot(localSnapshot, "已恢复本地对话");
+    }
 
     if (hasApiConnection()) {
       void getProjectWorkspace(activeProject.id)
         .then((workspace) => {
-          const remoteMessages = (workspace?.workbench?.messages as ChatMessage[] | undefined) ?? [];
-          if (remoteMessages.length > 0) {
-            setProjectHasConversation(true);
+          if (cancelled) {
+            return;
+          }
+
+          const remoteWorkbench = workspace?.workbench;
+          if (remoteWorkbench && hasWorkbenchContent(remoteWorkbench)) {
+            const remoteMessages = readWorkbenchArray<ChatMessage>(remoteWorkbench, "messages") ?? [];
+            setProjectHasConversation(remoteMessages.length > 0);
+            applyWorkbenchSnapshot(remoteWorkbench, "已恢复完整对话");
+          } else if (!localSnapshot) {
+            setAnalysisState("已打开创作历史");
           }
         })
-        .catch(() => {});
+        .catch(() => {
+          if (!cancelled && !localSnapshot) {
+            setAnalysisState("已打开创作历史");
+          }
+        })
+        .finally(() => {
+          if (!cancelled) {
+            setLoadedWorkspaceProjectId(projectId);
+          }
+        });
+
+      return () => {
+        cancelled = true;
+      };
     }
 
-    setLoadedWorkspaceProjectId(activeProject.id);
+    setLoadedWorkspaceProjectId(projectId);
+
+    return () => {
+      cancelled = true;
+    };
   }, [activeProject.id]);
 
   useEffect(() => {
