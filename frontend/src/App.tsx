@@ -1058,6 +1058,7 @@ function CreatePage() {
   const projectWorkspaceSyncRef = useRef("");
   const newProjectRef = useRef("");
   const creationSelectionInitializedRef = useRef(false);
+  const chatWindowRef = useRef<HTMLDivElement | null>(null);
   const versionAudioRef = useRef<HTMLAudioElement | null>(null);
   const versionAudioIdRef = useRef("");
   const [loadedWorkspaceProjectId, setLoadedWorkspaceProjectId] = useState("");
@@ -1119,6 +1120,21 @@ function CreatePage() {
       versionAudioIdRef.current = "";
     };
   }, []);
+
+  useEffect(() => {
+    if (!messages.length) {
+      return undefined;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      chatWindowRef.current?.scrollTo({
+        top: chatWindowRef.current.scrollHeight,
+        behavior: "smooth",
+      });
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [messages]);
 
   useEffect(() => {
     writeStorage(STORAGE_KEYS.projects, projects);
@@ -2190,11 +2206,23 @@ function CreatePage() {
 
             <div className="workbench-body">
               <div className="conversation-area">
-                <div className="chat-window" aria-label="创作对话">
+                <div ref={chatWindowRef} className={`chat-window ${messages.length === 0 ? "is-empty" : ""}`} aria-label="创作对话">
                   {messages.length === 0 ? (
-                    <p className="chat-empty">
-                      把灵感发给我，我们一起写歌。可以写歌词、描述旋律、贴修改意见，或上传旧 Demo。
-                    </p>
+                    <div className="chat-empty">
+                      <div className="chat-empty-notes" aria-hidden="true">
+                        <span className="chat-empty-note note-a">♪</span>
+                        <span className="chat-empty-note note-b">♫</span>
+                        <span className="chat-empty-note note-c">♬</span>
+                        <span className="chat-empty-note note-d">♩</span>
+                        <span className="chat-empty-note note-e">𝄞</span>
+                        <span className="chat-empty-note note-f">♭</span>
+                        <span className="chat-empty-note note-g">♯</span>
+                        <span className="chat-empty-note note-h">♮</span>
+                        <span className="chat-empty-note note-i">♫</span>
+                        <span className="chat-empty-note note-j">♪</span>
+                      </div>
+                      <strong>今天想写什么声音?</strong>
+                    </div>
                   ) : (
                     messages.map((message) => (
                     <article className={`chat-message ${message.role}`} key={message.id}>
