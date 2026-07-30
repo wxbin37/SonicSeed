@@ -1217,15 +1217,47 @@ function CreatePage() {
     }
 
     setLoadedWorkspaceProjectId("");
-    // 关闭“进入项目自动恢复对话”：每次进入都从空白聊天框开始
-    resetWorkbenchForProject();
-    // 把同步标记置为当前（空白）状态，避免下方自动保存把已存的旧对话覆盖成空
-    projectWorkspaceSyncRef.current = JSON.stringify({
-      projectId: activeProject.id,
-      clientId,
-      snapshot: buildWorkbenchSnapshot(),
-    });
-    setLoadedWorkspaceProjectId(activeProject.id);
+    projectWorkspaceSyncRef.current = "";
+    setAnalysisState("正在恢复完整对话");
+
+    if (!hasApiConnection()) {
+      const localWorkspaces = readStorage<Record<string, WorkbenchSnapshot>>(STORAGE_KEYS.workspaces, {});
+      const localWorkspace = localWorkspaces[activeProject.id];
+      if (localWorkspace) {
+        applyWorkbenchSnapshot(localWorkspace as Record<string, unknown>, "已恢复完整对话");
+      } else {
+        resetWorkbenchForProject();
+      }
+      setLoadedWorkspaceProjectId(activeProject.id);
+      return;
+    }
+
+    let cancelled = false;
+
+    void getProjectWorkspace(activeProject.id)
+      .then((workspace) => {
+        if (cancelled) {
+          return;
+        }
+
+        if (workspace && Object.keys(workspace.workbench).length) {
+          applyWorkbenchSnapshot(workspace.workbench, "已恢复完整对话");
+        } else {
+          resetWorkbenchForProject();
+        }
+
+        setLoadedWorkspaceProjectId(activeProject.id);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          resetWorkbenchForProject("完整对话恢复失败");
+          setLoadedWorkspaceProjectId(activeProject.id);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [activeProject.id]);
 
   useEffect(() => {
