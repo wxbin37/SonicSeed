@@ -35,7 +35,15 @@ test("front-end defines the requested product routes", async () => {
   assert.match(app, /所属项目/);
   assert.match(app, /data-focused/);
   assert.match(app, /scrollIntoView/);
-  assert.match(app, /当前灵感附近/);
+  assert.match(app, /id: "kind", label: "灵感类型"/);
+  assert.match(app, /id: "theme", label: "核心主题"/);
+  assert.match(app, /id: "emotion", label: "情绪"/);
+  assert.match(app, /id: "scene", label: "场景"/);
+  assert.match(app, /id: "imagery", label: "核心意象"/);
+  assert.match(app, /id: "genre", label: "曲风"/);
+  assert.match(app, /id: "melody", label: "旋律特征"/);
+  assert.match(app, /id: "position", label: "创作位置"/);
+  assert.match(app, /id: "usage", label: "使用方式"/);
   assert.match(app, /inspirations=/);
   assert.match(api, /VITE_API_BASE_URL/);
   assert.match(api, /type InspirationRecord/);

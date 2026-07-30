@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ChangeEvent, type CSSPropert
 import type { LucideIcon } from "lucide-react";
 import {
   ArrowLeft,
+  Bell,
   Bot,
   Check,
   ChevronDown,
@@ -20,9 +21,11 @@ import {
   List,
   ListMusic,
   MessageCircle,
+  Mic2,
   Music2,
   Network,
   Radio,
+  RotateCcw,
   Search,
   Loader2,
   PanelLeftClose,
@@ -36,11 +39,14 @@ import {
   Share2,
   SlidersHorizontal,
   Sparkles,
+  Star,
   Tags,
   Type,
   UsersRound,
   Video,
   X,
+  ZoomIn,
+  ZoomOut,
 } from "lucide-react";
 import {
   analyzeInspiration,
@@ -811,18 +817,6 @@ function initialLibraryInspirations() {
   return addRelationCounts(cachedRecords.map((record) => mapInspirationRecord(record, projectTitles)));
 }
 
-const graphLinks = [
-  ["tomorrow-line", "morning-hook"],
-  ["tomorrow-line", "taxi-window"],
-  ["tomorrow-line", "last-goodnight"],
-  ["tomorrow-line", "leave-story"],
-  ["morning-hook", "demo-v1"],
-  ["taxi-window", "demo-v1"],
-  ["station-ambience", "demo-v1"],
-  ["leave-story", "station-ambience"],
-  ["demo-v1", "hook-feedback"],
-] as const;
-
 function HomePage() {
   const homeRef = useRef<HTMLElement>(null);
   const [activeEntry, setActiveEntry] = useState<"library" | "create" | null>(null);
@@ -852,47 +846,48 @@ function HomePage() {
   }
 
   const waveBars = [12, 22, 34, 18, 28, 14, 24, 38, 18, 30, 12];
+  const ambientParticles = Array.from({ length: 26 }, (_, index) => ({
+    x: (index * 37 + 11) % 100,
+    y: (index * 53 + 7) % 100,
+    size: 1 + (index % 3),
+    delay: index * -0.23,
+  }));
 
   return (
     <main
-      className="home-shell"
+      className="home-shell museed-home"
       aria-label="Museed 入口"
       ref={homeRef}
       onPointerMove={handlePointerMove}
       onPointerLeave={resetPointer}
     >
-      <header className="home-header">
+      <header className="home-brand-header">
         <a className="home-brand" href="/" aria-label="Museed 首页">Mus<span>eed</span></a>
-        <p>A creative space for unfinished ideas</p>
       </header>
 
-      <section className="home-stage" aria-label="主入口">
-        <div className="home-notes" aria-hidden="true">
-          <span>♪</span><span>♫</span><span>·</span><span>♩</span>
+      <section className="home-dashboard" aria-label="Museed 首页主界面">
+        <div className="home-particles" aria-hidden="true">
+          {ambientParticles.map((particle, index) => (
+            <i key={index} style={{ "--particle-x": `${particle.x}%`, "--particle-y": `${particle.y}%`, "--particle-size": `${particle.size}px`, "--particle-delay": `${particle.delay}s` } as CSSProperties} />
+          ))}
         </div>
 
-        <section
-          className="home-disc"
-          data-active={activeEntry ?? undefined}
-          data-clicked={entryClicked ? "true" : undefined}
-          aria-label="Museed 集中入口"
-        >
-          <span className="home-active-arc" aria-hidden="true" />
-          <div className="home-orbit" aria-hidden="true"><i /><i /></div>
+        <div className="home-status" aria-label="今日灵感 23 条">
+          <span>今日灵感</span><strong>23</strong><button aria-label="查看通知" type="button"><Bell size={16} /></button>
+        </div>
 
-          <div className="home-copy">
-            <p className="home-eyebrow">Music / Memory / Motion</p>
-            <h1>让每一刻灵感<br /><span>都有机会成为一首歌</span></h1>
-            <p className="home-description">记录、整理、延展你的声音碎片。<br />从一个念头开始，和 Museed 一起把它做完。</p>
+        <section className="home-hero-copy" aria-labelledby="home-title">
+          <p className="home-eyebrow">Music / Memory / Motion</p>
+          <h1 id="home-title">让每一刻灵感<br /><span>都有机会成为一首歌</span></h1>
+          <p className="home-description">记录、整理、延展你的声音碎片，<br />从一个念头开始，和 Museed 一起把它做完。</p>
+
+          <div className="home-copy-wave" aria-hidden="true">
+            {waveBars.map((height, index) => <i key={index} style={{ "--bar-height": `${height}px`, "--bar-delay": `${index * -0.11}s` } as CSSProperties} />)}
           </div>
 
-          <svg className="home-link-wave" viewBox="0 0 420 80" aria-hidden="true">
-            <path d="M210 8 C210 35 272 22 307 59 C328 81 365 68 397 50" />
-          </svg>
-
-          <nav className="home-actions" aria-label="页面入口">
+          <nav className="home-hero-actions" aria-label="主要入口">
             <a
-              className="home-entrance library-entrance"
+              className="home-entry-action library-action"
               href="/library"
               onMouseEnter={() => setActiveEntry("library")}
               onMouseLeave={() => { if (!entryClicked) setActiveEntry(null); }}
@@ -900,12 +895,11 @@ function HomePage() {
               onBlur={() => { if (!entryClicked) setActiveEntry(null); }}
               onClick={(event) => handleEntryClick(event, "library", "/library")}
             >
-              <span className="entrance-ripples" aria-hidden="true"><i /><i /><i /></span>
-              <span className="entrance-content"><Library size={22} /><strong>灵感库</strong><small>收集每个瞬间</small></span>
+              <Library size={20} />
+              <span><strong>灵感库</strong><small>收集每个瞬间</small></span>
             </a>
-
             <a
-              className="home-entrance create-entrance"
+              className="home-entry-action create-action"
               href="/create"
               onMouseEnter={() => setActiveEntry("create")}
               onMouseLeave={() => { if (!entryClicked) setActiveEntry(null); }}
@@ -913,18 +907,53 @@ function HomePage() {
               onBlur={() => { if (!entryClicked) setActiveEntry(null); }}
               onClick={(event) => handleEntryClick(event, "create", "/create")}
             >
-              <span className="entrance-ripples" aria-hidden="true"><i /><i /><i /></span>
-              <span className="entrance-content"><Play size={22} fill="currentColor" /><strong>开始创作</strong><small>把想法变成 Demo</small></span>
+              <Play size={20} fill="currentColor" />
+              <span><strong>开始创作</strong><small>把想法变成 Demo</small></span>
             </a>
           </nav>
 
-          <div className="home-wave" aria-hidden="true">
-            {waveBars.map((height, index) => <i key={index} style={{ "--bar-height": `${height}px`, "--bar-delay": `${index * -0.11}s` } as CSSProperties} />)}
+          <dl className="home-stats">
+            <div><dt>1287</dt><dd>灵感记录</dd></div>
+            <div><dt>56</dt><dd>创作项目</dd></div>
+            <div><dt>18</dt><dd>已完成 Demo</dd></div>
+          </dl>
+        </section>
+
+        <section
+          className="home-sonic-visual"
+          data-active={activeEntry ?? undefined}
+          data-clicked={entryClicked ? "true" : undefined}
+          aria-label="动态音乐灵感核心"
+        >
+          <div className="home-core-scene" aria-hidden="true">
+            <span className="home-core-glow" />
+            <span className="home-core-ring ring-one" />
+            <span className="home-core-ring ring-two" />
+            <span className="home-core-ring ring-three" />
+            <span className="home-core-ring ring-four" />
+            <span className="home-core-note"><Music2 size={92} /></span>
+            <span className="home-orbit-node node-wave"><Radio size={20} /></span>
+            <span className="home-orbit-node node-grid"><LayoutGrid size={19} /></span>
+            <span className="home-orbit-node node-star"><Star size={21} /></span>
+            <span className="home-orbit-node node-heart"><Heart size={20} /></span>
+            <span className="home-orbit-node node-mic"><Mic2 size={20} /></span>
+            <span className="home-orbit-node node-idea"><MessageCircle size={20} /></span>
+            <span className="home-floating-note note-one">♪</span>
+            <span className="home-floating-note note-two">♫</span>
+            <span className="home-floating-note note-three">♪</span>
+          </div>
+
+          <div className="home-now-playing">
+            <span className="home-track-art"><Music2 size={18} /></span>
+            <span className="home-track-copy"><strong>灵感正在发芽</strong><small>Museed Demo</small></span>
+            <span className="home-track-wave" aria-hidden="true">
+              {waveBars.map((height, index) => <i key={index} style={{ "--bar-height": `${Math.max(5, height / 2)}px`, "--bar-delay": `${index * -0.08}s` } as CSSProperties} />)}
+            </span>
+            <button aria-label="播放灵感正在发芽" type="button"><Play size={16} fill="currentColor" /></button>
           </div>
         </section>
-      </section>
 
-      <footer className="home-footer"><span>© 2026 MUSEED</span><span>移动光标，感受律动</span></footer>
+      </section>
     </main>
   );
 }
@@ -2498,63 +2527,242 @@ const filterGroups = [
   { id: "time", label: "时间", options: ["全部时间", "今天", "7 天内", "30 天内"] },
 ] as const;
 
-const graphPositions: Record<string, { x: number; y: number }> = {
-  "tomorrow-line": { x: 48, y: 43 },
-  "morning-hook": { x: 17, y: 28 },
-  "taxi-window": { x: 77, y: 21 },
-  "station-ambience": { x: 17, y: 69 },
-  "last-goodnight": { x: 81, y: 51 },
-  "leave-story": { x: 39, y: 73 },
-  "demo-v1": { x: 64, y: 76 },
-  "hook-feedback": { x: 88, y: 82 },
-};
+type GraphTagCategoryId = "kind" | "theme" | "emotion" | "scene" | "imagery" | "genre" | "melody" | "position" | "usage";
 
-function createGraphLinks(items: Inspiration[]): Array<[string, string]> {
-  const itemIds = new Set(items.map((item) => item.id));
-  const linkKeys = new Set<string>();
-  const links: Array<[string, string]> = [];
+const graphTagCategories: Array<{ id: GraphTagCategoryId; label: string }> = [
+  { id: "kind", label: "灵感类型" },
+  { id: "theme", label: "核心主题" },
+  { id: "emotion", label: "情绪" },
+  { id: "scene", label: "场景" },
+  { id: "imagery", label: "核心意象" },
+  { id: "genre", label: "曲风" },
+  { id: "melody", label: "旋律特征" },
+  { id: "position", label: "创作位置" },
+  { id: "usage", label: "使用方式" },
+];
 
-  function addLink(source: string, target: string) {
-    if (!itemIds.has(source) || !itemIds.has(target) || source === target) return;
-    const key = [source, target].sort().join("::");
-    if (linkKeys.has(key)) return;
-    linkKeys.add(key);
-    links.push([source, target]);
-  }
+function splitGraphTags(value?: string) {
+  return value
+    ? Array.from(new Set(value.split(/[、，,\/]/).map((tag) => tag.trim()).filter(Boolean)))
+    : [];
+}
 
-  graphLinks.forEach(([source, target]) => addLink(source, target));
-  items.forEach((source) => {
-    items
-      .filter((target) => target.id !== source.id)
-      .map((target) => ({ target, score: relationScore(source, target) }))
-      .filter(({ score }) => score > 0)
-      .sort((left, right) => right.score - left.score)
-      .slice(0, 3)
-      .forEach(({ target }) => addLink(source.id, target.id));
+function getGraphCategoryTags(item: Inspiration, category: GraphTagCategoryId) {
+  if (category === "kind") return [item.kind];
+  if (category === "theme") return item.theme ? [item.theme] : [];
+  if (category === "emotion") return item.emotion ? [item.emotion] : [];
+  if (category === "scene") return item.scene ? [item.scene] : [];
+  if (category === "imagery") return splitGraphTags(item.coreImagery);
+  if (category === "genre") return item.genre ? [item.genre] : [];
+  if (category === "melody") return splitGraphTags(item.melodyFeatures);
+  if (category === "position") return splitGraphTags(item.creationPosition);
+  return splitGraphTags(item.usage);
+}
+
+function createCategoryGraphLinks(items: Inspiration[], category: GraphTagCategoryId): Array<[string, string, string]> {
+  const groups = new Map<string, string[]>();
+  items.forEach((item) => {
+    getGraphCategoryTags(item, category).forEach((tag) => {
+      groups.set(tag, [...(groups.get(tag) ?? []), item.id]);
+    });
   });
 
+  const pairKeys = new Set<string>();
+  const links: Array<[string, string, string]> = [];
+  groups.forEach((ids, tag) => {
+    ids.slice(1).forEach((target, index) => {
+      const source = ids[index];
+      const pairKey = [source, target].sort().join("::");
+      if (pairKeys.has(pairKey)) return;
+      pairKeys.add(pairKey);
+      links.push([source, target, tag]);
+    });
+  });
   return links;
 }
 
-function createGraphPositions(items: Inspiration[]) {
-  const usesPresetLayout = items.every((item) => Boolean(graphPositions[item.id]));
-  if (usesPresetLayout) return graphPositions;
+function graphSeed(value: string) {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0) / 4294967295;
+}
 
-  return items.reduce<Record<string, { x: number; y: number }>>((positions, item, index) => {
-    if (index === 0) {
-      positions[item.id] = { x: 50, y: 48 };
-      return positions;
+function createCategoryGraphPositions(
+  items: Inspiration[],
+  category: GraphTagCategoryId,
+  links: Array<[string, string, string]>,
+  activeTag: string,
+) {
+  const positions: Record<string, { x: number; y: number }> = {};
+  if (items.length === 0) return positions;
+
+  const itemTags = new Map(
+    items.map((item) => [item.id, activeTag || getGraphCategoryTags(item, category)[0] || "未分类"]),
+  );
+  const groupTags = Array.from(new Set(itemTags.values())).sort((left, right) => left.localeCompare(right, "zh-CN"));
+  const categoryAngle = graphSeed(category) * Math.PI * 2;
+  const clusterCenters = new Map<string, { x: number; y: number }>();
+
+  groupTags.forEach((tag, index) => {
+    if (groupTags.length === 1) {
+      clusterCenters.set(tag, { x: 50, y: 49 });
+      return;
+    }
+    const angle = categoryAngle + (index / groupTags.length) * Math.PI * 2;
+    const radiusX = groupTags.length <= 4 ? 27 : 36;
+    const radiusY = groupTags.length <= 4 ? 22 : 29;
+    clusterCenters.set(tag, {
+      x: 50 + Math.cos(angle) * radiusX,
+      y: 49 + Math.sin(angle) * radiusY,
+    });
+  });
+
+  groupTags.forEach((tag) => {
+    const groupItems = items
+      .filter((item) => itemTags.get(item.id) === tag)
+      .sort((left, right) => graphSeed(`${category}:${left.id}`) - graphSeed(`${category}:${right.id}`));
+    const center = clusterCenters.get(tag) ?? { x: 50, y: 49 };
+    groupItems.forEach((item, index) => {
+      const angle = categoryAngle + graphSeed(`${category}:${tag}`) * Math.PI * 2 + (index / Math.max(1, groupItems.length)) * Math.PI * 2;
+      const localRadius = groupItems.length === 1 ? 0 : 7 + Math.min(groupItems.length, 6) * 0.8;
+      positions[item.id] = {
+        x: center.x + Math.cos(angle) * localRadius,
+        y: center.y + Math.sin(angle) * localRadius * 0.78,
+      };
+    });
+  });
+
+  const velocities = new Map(items.map((item) => [item.id, { x: 0, y: 0 }]));
+  for (let iteration = 0; iteration < 90; iteration += 1) {
+    const cooling = 1 - iteration / 90;
+    const forces = new Map(items.map((item) => [item.id, { x: 0, y: 0 }]));
+
+    items.forEach((item) => {
+      const position = positions[item.id];
+      const center = clusterCenters.get(itemTags.get(item.id) ?? "") ?? { x: 50, y: 49 };
+      const force = forces.get(item.id)!;
+      force.x += (center.x - position.x) * 0.018;
+      force.y += (center.y - position.y) * 0.018;
+    });
+
+    for (let leftIndex = 0; leftIndex < items.length; leftIndex += 1) {
+      for (let rightIndex = leftIndex + 1; rightIndex < items.length; rightIndex += 1) {
+        const left = items[leftIndex];
+        const right = items[rightIndex];
+        const dx = positions[right.id].x - positions[left.id].x;
+        const dy = positions[right.id].y - positions[left.id].y;
+        const distance = Math.max(0.5, Math.hypot(dx, dy));
+        const minimumDistance = 15;
+        if (distance >= minimumDistance) continue;
+        const push = (minimumDistance - distance) * 0.075;
+        const pushX = (dx / distance) * push;
+        const pushY = (dy / distance) * push;
+        forces.get(left.id)!.x -= pushX;
+        forces.get(left.id)!.y -= pushY;
+        forces.get(right.id)!.x += pushX;
+        forces.get(right.id)!.y += pushY;
+      }
     }
 
-    const angle = index * 2.399963;
-    const radius = Math.min(43, 14 + Math.sqrt(index) * 8.5);
-    positions[item.id] = {
-      x: 50 + Math.cos(angle) * radius,
-      y: 48 + Math.sin(angle) * radius * 0.72,
-    };
-    return positions;
-  }, {});
+    links.forEach(([source, target]) => {
+      const dx = positions[target].x - positions[source].x;
+      const dy = positions[target].y - positions[source].y;
+      const distance = Math.max(0.5, Math.hypot(dx, dy));
+      const spring = (distance - 19) * 0.025;
+      const springX = (dx / distance) * spring;
+      const springY = (dy / distance) * spring;
+      forces.get(source)!.x += springX;
+      forces.get(source)!.y += springY;
+      forces.get(target)!.x -= springX;
+      forces.get(target)!.y -= springY;
+    });
+
+    items.forEach((item) => {
+      const force = forces.get(item.id)!;
+      const velocity = velocities.get(item.id)!;
+      velocity.x = (velocity.x + force.x) * 0.72;
+      velocity.y = (velocity.y + force.y) * 0.72;
+      positions[item.id].x = Math.min(87, Math.max(13, positions[item.id].x + velocity.x * cooling));
+      positions[item.id].y = Math.min(84, Math.max(14, positions[item.id].y + velocity.y * cooling));
+    });
+  }
+
+  for (let pass = 0; pass < 60; pass += 1) {
+    for (let leftIndex = 0; leftIndex < items.length; leftIndex += 1) {
+      for (let rightIndex = leftIndex + 1; rightIndex < items.length; rightIndex += 1) {
+        const left = items[leftIndex];
+        const right = items[rightIndex];
+        const dx = positions[right.id].x - positions[left.id].x;
+        const dy = positions[right.id].y - positions[left.id].y;
+        const pixelDx = dx * 3.2;
+        const pixelDy = dy * 6;
+        const leftSize = 42 + Math.min(left.relations, 5) * 3;
+        const rightSize = 42 + Math.min(right.relations, 5) * 3;
+        const leftDesktopSize = 52 + Math.min(left.relations, 5) * 4;
+        const rightDesktopSize = 52 + Math.min(right.relations, 5) * 4;
+        const overlapX = (Math.max(leftSize, 72) + Math.max(rightSize, 72)) / 2 + 8 - Math.abs(pixelDx);
+        const overlapY = (leftDesktopSize + rightDesktopSize) / 2 + 35 - Math.abs(pixelDy);
+        if (overlapX <= 0 || overlapY <= 0) continue;
+
+        if (overlapX / 3.2 <= overlapY / 6) {
+          const direction = Math.abs(pixelDx) > 0.1 ? Math.sign(pixelDx) : (graphSeed(`${category}:${left.id}:${right.id}`) > 0.5 ? 1 : -1);
+          const offsetX = (overlapX / 2 / 3.2) * direction;
+          positions[left.id].x = Math.min(87, Math.max(13, positions[left.id].x - offsetX));
+          positions[right.id].x = Math.min(87, Math.max(13, positions[right.id].x + offsetX));
+        } else {
+          const direction = Math.abs(pixelDy) > 0.1 ? Math.sign(pixelDy) : (graphSeed(`${category}:${right.id}:${left.id}`) > 0.5 ? 1 : -1);
+          const offsetY = (overlapY / 2 / 6) * direction;
+          positions[left.id].y = Math.min(84, Math.max(14, positions[left.id].y - offsetY));
+          positions[right.id].y = Math.min(84, Math.max(14, positions[right.id].y + offsetY));
+        }
+      }
+    }
+  }
+
+  return positions;
 }
+
+function createGraphEdgePath(
+  start: { x: number; y: number },
+  end: { x: number; y: number },
+  sourceRelations: number,
+  targetRelations: number,
+  index: number,
+) {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const distance = Math.max(1, Math.hypot(dx, dy));
+  const unitX = dx / distance;
+  const unitY = dy / distance;
+  const sourcePadding = 3.1 + Math.min(sourceRelations, 5) * 0.22;
+  const targetPadding = 3.1 + Math.min(targetRelations, 5) * 0.22;
+  const x1 = start.x + unitX * sourcePadding;
+  const y1 = start.y + unitY * sourcePadding;
+  const x2 = end.x - unitX * targetPadding;
+  const y2 = end.y - unitY * targetPadding;
+  const curveDirection = index % 2 === 0 ? 1 : -1;
+  const curve = Math.min(3.6, distance * 0.08) * curveDirection;
+  const controlX = (x1 + x2) / 2 - unitY * curve;
+  const controlY = (y1 + y2) / 2 + unitX * curve;
+
+  return `M ${x1.toFixed(2)} ${y1.toFixed(2)} Q ${controlX.toFixed(2)} ${controlY.toFixed(2)} ${x2.toFixed(2)} ${y2.toFixed(2)}`;
+}
+
+const graphTagColors = [
+  "#00f285",
+  "#52d9ff",
+  "#ffd166",
+  "#ff78ad",
+  "#b596ff",
+  "#ff9b62",
+  "#45e0c1",
+  "#ff6b6b",
+  "#b8f45f",
+  "#6fa8ff",
+];
 
 function InspirationPreview({ inspiration }: { inspiration: Inspiration }) {
   const [showFullSummary, setShowFullSummary] = useState(false);
@@ -2817,8 +3025,10 @@ function LibraryPage() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [focusedGraphId, setFocusedGraphId] = useState<string | null>(null);
   const [filters, setFilters] = useState<Record<string, string>>({});
-  const [relationMode, setRelationMode] = useState("主题");
+  const [relationMode, setRelationMode] = useState<GraphTagCategoryId>("kind");
+  const [graphTagFilter, setGraphTagFilter] = useState("");
   const [actionMessage, setActionMessage] = useState("");
+  const [graphZoom, setGraphZoom] = useState(1);
 
   useEffect(() => {
     if (!hasApiConnection()) return;
@@ -2844,8 +3054,6 @@ function LibraryPage() {
     };
   }, []);
 
-  const activeGraphLinks = useMemo(() => createGraphLinks(libraryInspirations), [libraryInspirations]);
-  const activeGraphPositions = useMemo(() => createGraphPositions(libraryInspirations), [libraryInspirations]);
   const activeFilterGroups = useMemo(
     () =>
       filterGroups.map((group) => {
@@ -2892,21 +3100,27 @@ function LibraryPage() {
     });
   }, [filters, libraryInspirations, query]);
 
-  const visibleGraphItems = useMemo(() => {
-    const graphRoots = focusedGraphId ? [...selectedIds, focusedGraphId] : selectedIds;
-    if (relationMode !== "当前灵感附近" || graphRoots.length === 0) {
-      return filteredInspirations;
-    }
-
-    const nearby = new Set(graphRoots);
-    activeGraphLinks.forEach(([source, target]) => {
-      if (nearby.has(source)) nearby.add(target);
-      if (nearby.has(target)) nearby.add(source);
-    });
-    return filteredInspirations.filter((item) => nearby.has(item.id));
-  }, [activeGraphLinks, filteredInspirations, focusedGraphId, relationMode, selectedIds]);
-
-  const visibleGraphIds = new Set(visibleGraphItems.map((item) => item.id));
+  const activeGraphTags = useMemo(
+    () => Array.from(new Set(filteredInspirations.flatMap((item) => getGraphCategoryTags(item, relationMode)))).sort((left, right) => left.localeCompare(right, "zh-CN")),
+    [filteredInspirations, relationMode],
+  );
+  const activeGraphTagColorMap = new Map(
+    activeGraphTags.map((tag, index) => [tag, graphTagColors[index % graphTagColors.length]]),
+  );
+  const visibleGraphItems = useMemo(
+    () => graphTagFilter
+      ? filteredInspirations.filter((item) => getGraphCategoryTags(item, relationMode).includes(graphTagFilter))
+      : filteredInspirations,
+    [filteredInspirations, graphTagFilter, relationMode],
+  );
+  const activeCategoryGraphLinks = useMemo(
+    () => createCategoryGraphLinks(visibleGraphItems, relationMode),
+    [relationMode, visibleGraphItems],
+  );
+  const activeGraphPositions = useMemo(
+    () => createCategoryGraphPositions(visibleGraphItems, relationMode, activeCategoryGraphLinks, graphTagFilter),
+    [activeCategoryGraphLinks, graphTagFilter, relationMode, visibleGraphItems],
+  );
   const selectedInspirations = libraryInspirations.filter((item) => selectedIds.includes(item.id));
   const createHref = `/create?inspirations=${selectedIds.join(",")}`;
 
@@ -2923,20 +3137,24 @@ function LibraryPage() {
 
   function showRelations() {
     setView("graph");
-    setRelationMode("当前灵感附近");
+    setRelationMode("theme");
+    setGraphTagFilter("");
     setActionMessage("已在图谱中聚焦所选灵感及其关系");
   }
 
   function focusInGraph(id: string) {
     setFocusedGraphId(id);
     setView("graph");
-    setRelationMode("当前灵感附近");
     window.setTimeout(() => {
       document.querySelector(`[data-node-id="${id}"]`)?.scrollIntoView({
         behavior: "smooth",
         block: "center",
       });
     }, 0);
+  }
+
+  function updateGraphZoom(nextZoom: number) {
+    setGraphZoom(Math.min(1.3, Math.max(0.7, Number(nextZoom.toFixed(2)))));
   }
 
   return (
@@ -3052,38 +3270,60 @@ function LibraryPage() {
         <section className="graph-panel" aria-label="灵感图谱视图">
           <div className="graph-toolbar">
             <div>
-              {["主题", "情绪", "项目", "当前灵感附近"].map((mode) => (
-                <button data-active={relationMode === mode} key={mode} onClick={() => setRelationMode(mode)} type="button">
-                  {mode === "主题" ? "按主题" : mode === "情绪" ? "按情绪" : mode === "项目" ? "按项目" : mode}
+              {graphTagCategories.map((category) => (
+                <button
+                  data-active={relationMode === category.id}
+                  key={category.id}
+                  onClick={() => {
+                    setRelationMode(category.id);
+                    setGraphTagFilter("");
+                    setGraphZoom(1);
+                  }}
+                  type="button"
+                >
+                  {category.label}
                 </button>
               ))}
             </div>
-            <span><SlidersHorizontal size={15} /> 节点大小表示关联度</span>
+            <span><SlidersHorizontal size={15} /> 节点颜色表示具体标签</span>
+          </div>
+
+          <div className="graph-tag-strip" aria-label="具体标签">
+            <button data-active={!graphTagFilter} onClick={() => setGraphTagFilter("")} type="button">全部</button>
+            {activeGraphTags.map((tag) => (
+              <button
+                data-active={graphTagFilter === tag}
+                key={tag}
+                onClick={() => setGraphTagFilter((current) => current === tag ? "" : tag)}
+                style={{ "--tag-color": activeGraphTagColorMap.get(tag) } as CSSProperties}
+                type="button"
+              >
+                <i aria-hidden="true" />{tag}
+              </button>
+            ))}
           </div>
 
           <div className="graph-canvas">
+            <div className="graph-viewport" style={{ transform: `scale(${graphZoom})` }}>
             <svg aria-hidden="true" className="graph-links" preserveAspectRatio="none" viewBox="0 0 100 100">
-              {activeGraphLinks.map(([source, target], index) => {
-                if (!visibleGraphIds.has(source) || !visibleGraphIds.has(target)) return null;
+              {activeCategoryGraphLinks.map(([source, target, tag], index) => {
                 const sourceItem = libraryInspirations.find((item) => item.id === source);
                 const targetItem = libraryInspirations.find((item) => item.id === target);
-                const matchesRelation =
-                  relationMode === "当前灵感附近" ||
-                  (relationMode === "主题" && Boolean(sourceItem?.theme) && sourceItem?.theme === targetItem?.theme) ||
-                  (relationMode === "情绪" && Boolean(sourceItem?.emotion) && sourceItem?.emotion === targetItem?.emotion) ||
-                  (relationMode === "项目" && Boolean(sourceItem?.project) && sourceItem?.project === targetItem?.project);
-                if (!matchesRelation) return null;
                 const start = activeGraphPositions[source];
                 const end = activeGraphPositions[target];
+                const isEmphasized =
+                  selectedIds.includes(source) ||
+                  selectedIds.includes(target) ||
+                  focusedGraphId === source ||
+                  focusedGraphId === target;
                 return (
-                  <line
-                    className={index % 3 === 0 ? "confirmed" : "suggested"}
-                    key={`${source}-${target}`}
-                    x1={start.x}
-                    x2={end.x}
-                    y1={start.y}
-                    y2={end.y}
+                  <g key={`${source}-${target}-${tag}`}>
+                  <title>{`${tag} · 同标签关联`}</title>
+                  <path
+                    className={isEmphasized ? "emphasized" : "confirmed"}
+                    d={createGraphEdgePath(start, end, sourceItem?.relations ?? 0, targetItem?.relations ?? 0, index)}
                   />
+                  </g>
                 );
               })}
             </svg>
@@ -3091,9 +3331,13 @@ function LibraryPage() {
             {visibleGraphItems.map((item) => {
               const Icon = item.icon;
               const position = activeGraphPositions[item.id];
-              const nodeSize = 62 + Math.min(item.relations, 5) * 7;
+              const nodeSize = 52 + Math.min(item.relations, 5) * 4;
+              const mobileNodeSize = 42 + Math.min(item.relations, 5) * 3;
+              const nodeTag = graphTagFilter || getGraphCategoryTags(item, relationMode)[0] || "未分类";
+              const nodeColor = activeGraphTagColorMap.get(nodeTag) ?? "#8c9691";
               return (
                 <button
+                  aria-label={`${item.title}，${nodeTag}`}
                   aria-current={focusedGraphId === item.id ? "true" : undefined}
                   aria-pressed={selectedIds.includes(item.id)}
                   className="graph-node"
@@ -3102,18 +3346,44 @@ function LibraryPage() {
                   data-selected={selectedIds.includes(item.id)}
                   key={item.id}
                   onClick={() => toggleSelection(item.id)}
-                  style={{ left: `${position.x}%`, top: `${position.y}%`, width: nodeSize, height: nodeSize }}
+                  style={{
+                    "--graph-node-size": `${nodeSize}px`,
+                    "--graph-node-mobile-size": `${mobileNodeSize}px`,
+                    "--node-color": nodeColor,
+                    left: `${position.x}%`,
+                    top: `${position.y}%`,
+                  } as CSSProperties}
                   type="button"
                 >
                   <Icon size={19} />
-                  <span>{item.title}</span>
+                  <span className="graph-node-label"><b>{nodeTag}</b><em>{item.title}</em></span>
                 </button>
               );
             })}
+            </div>
 
-            <div className="graph-legend">
-              <span><i className="solid" /> 已确认关联</span>
-              <span><i className="dashed" /> AI 潜在关联</span>
+            <div className="graph-zoom-controls" aria-label="图谱缩放">
+              <button
+                aria-label="缩小图谱"
+                disabled={graphZoom <= 0.7}
+                onClick={() => updateGraphZoom(graphZoom - 0.15)}
+                title="缩小图谱"
+                type="button"
+              ><ZoomOut size={17} /></button>
+              <button
+                aria-label={`重置图谱缩放，当前 ${Math.round(graphZoom * 100)}%`}
+                className="graph-zoom-reset"
+                onClick={() => updateGraphZoom(1)}
+                title="重置图谱缩放"
+                type="button"
+              ><RotateCcw size={15} /><span>{Math.round(graphZoom * 100)}%</span></button>
+              <button
+                aria-label="放大图谱"
+                disabled={graphZoom >= 1.3}
+                onClick={() => updateGraphZoom(graphZoom + 0.15)}
+                title="放大图谱"
+                type="button"
+              ><ZoomIn size={17} /></button>
             </div>
           </div>
         </section>
