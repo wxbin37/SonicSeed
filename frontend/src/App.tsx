@@ -32,6 +32,7 @@ import {
   PanelLeftOpen,
   Paperclip,
   Pause,
+  Pencil,
   Play,
   Plus,
   Send,
@@ -120,6 +121,8 @@ type DemoVersion = {
   taskId?: string;
   audioUrl?: string;
   lyrics?: string;
+  customName?: string;
+  createdAt?: string;
 };
 
 type InspirationKind = "歌词句" | "哼唱" | "旋律" | "故事" | "图片" | "环境声音" | "创作反馈" | "Demo";
@@ -548,7 +551,13 @@ function versionFromTask(task: DemoTaskResponse, index: number): DemoVersion {
     taskId: task.taskId,
     audioUrl: task.audioUrl,
     lyrics: task.lyrics,
+    createdAt: task.createdAt,
+    customName: task.customName,
   };
+}
+
+function versionLabel(version: DemoVersion): string {
+  return version.customName || version.title;
 }
 
 function formatDemoTaskMessage(task: DemoTaskResponse) {
@@ -1013,6 +1022,26 @@ function CreatePage() {
   const [playingVersionId, setPlayingVersionId] = useState("");
   const [playProgress, setPlayProgress] = useState(0);
   const [playerOpen, setPlayerOpen] = useState(false);
+  const [editingVersionId, setEditingVersionId] = useState("");
+  const [editingName, setEditingName] = useState("");
+
+  function startRenameVersion(version: DemoVersion) {
+    setEditingVersionId(version.id);
+    setEditingName(version.customName || version.title);
+  }
+
+  async function commitRenameVersion(version: DemoVersion) {
+    const name = editingName.trim();
+    setVersions((current) => current.map((item) => (item.id === version.id ? { ...item, customName: name || undefined } : item)));
+    setEditingVersionId("");
+    if (version.taskId && (name || version.customName)) {
+      try {
+        await updateDemoTaskName(version.taskId, name);
+      } catch {
+        /* 忽略网络错误，本地已更新 */
+      }
+    }
+  }
   const [libraryCount, setLibraryCount] = useState(() => (hasApiConnection() ? 0 : readStorage<InspirationCard[]>(STORAGE_KEYS.library, []).length));
   const [libraryCards, setLibraryCards] = useState<InspirationCard[]>(() =>
     hasApiConnection() ? [] : readStorage<InspirationCard[]>(STORAGE_KEYS.library, []),
@@ -1055,6 +1084,13 @@ function CreatePage() {
   const activeVersion = useMemo(
     () => visibleVersions.find((version) => version.id === activeVersionId) ?? visibleVersions[0],
     [activeVersionId, visibleVersions],
+  );
+  const isGenerating = Boolean(
+    activeVersion &&
+      !activeVersion.audioUrl &&
+      (activeVersion.progress ?? 0) > 0 &&
+      (activeVersion.progress ?? 0) < 100 &&
+      activeVersion.status !== "生成失败",
   );
   const playableVersions = useMemo(
     () => visibleVersions.filter((version) => version.audioUrl),
@@ -1213,13 +1249,15 @@ function CreatePage() {
     }
 
     let cancelled = false;
-    void Promise.all([listInspirations(), listDemoTasks()])
+    void Promise.all([listInspirations(), listDemoTasks(activeProjectId || undefined)])
       .then(([remoteCards, remoteTasks]) => {
         if (cancelled) {
           return;
         }
 
-        const remoteVersions = remoteTasks.map(versionFromTask);
+        // 按当前创作记录的生成时间升序编号：该项目第一个 demo 为版本 1
+        const sortedTasks = [...remoteTasks].sort((a, b) => (a.createdAt ?? "").localeCompare(b.createdAt ?? ""));
+        const remoteVersions = sortedTasks.map(versionFromTask);
         setLibraryCount(remoteCards.length);
         setSelectedInspirations(remoteCards.filter((card) => selectedInspirationIds.includes(card.id)));
         setLibraryCards(remoteCards);
@@ -1234,7 +1272,7 @@ function CreatePage() {
     return () => {
       cancelled = true;
     };
-  }, [selectedInspirationIds]);
+  }, [activeProjectId, selectedInspirationIds]);
 
   useEffect(() => {
     if (!canSubmit) {
@@ -1475,15 +1513,6 @@ function CreatePage() {
     const projectId = ensureProject(promptForTask);
     setDraft("");
     setCreationModalOpen(false);
-    setMessages((current) => [
-      ...current,
-      {
-        id: `setup_${Date.now()}`,
-        role: "user",
-        label: "我",
-        text: `创作版本输入：\n${promptForTask}`,
-      },
-    ]);
     addEvent("我", shouldGenerate ? "提交创作配置并生成试听版" : "保存了创作配置草稿");
 
     const selectedAttachments = uniqueBriefAttachments(selectedCreationSeeds.flatMap((seed) => seed.attachments));
@@ -1616,7 +1645,7 @@ function CreatePage() {
       return;
     }
 
-    ensureProject(messageText);
+    const savedProjectId = ensureProject(messageText);
     setMessages((current) => [
       ...current,
       {
@@ -1631,6 +1660,7 @@ function CreatePage() {
     setAttachments([]);
     addEvent("我", "发送了一条创作上下文");
     void runAnalysis("auto", sentText, sentAttachments);
+    void appendToLibrary(sentText || messageText, sentAttachments, savedProjectId);
 
     const history = messages
       .map((message) => ({ role: message.role, text: message.text }))
@@ -1665,6 +1695,25 @@ function CreatePage() {
       ]);
     } finally {
       setChatThinking(false);
+    }
+  }
+
+  async function appendToLibrary(content: string, items: LocalAttachment[], projectId: string) {
+    try {
+      const card = await saveInspiration({
+        projectId,
+        title: summarizePrompt(content),
+        content,
+        attachments: toBriefAttachments(items),
+        tags: analysisTags,
+      });
+      const stored = readStorage<InspirationCard[]>(STORAGE_KEYS.library, []);
+      writeStorage(STORAGE_KEYS.library, [card, ...stored]);
+      setLibraryCount((count) => count + 1);
+      setLibraryCards((current) => [card, ...current]);
+      return card;
+    } catch {
+      return null;
     }
   }
 
@@ -1755,7 +1804,7 @@ function CreatePage() {
             : project,
         ),
       );
-      addEvent("我", `创建了 ${nextVersion.title}`);
+      addEvent("我", `创建了 ${versionLabel(nextVersion)}`);
       setMessages((current) => [
         ...current,
         {
@@ -1878,7 +1927,7 @@ function CreatePage() {
 
     if (!targetVersion.audioUrl) {
       setPlayingVersionId("");
-      setListenState(`${targetVersion.title} 暂无音频`);
+      setListenState(`${versionLabel(targetVersion)} 暂无音频`);
       return;
     }
 
@@ -1887,14 +1936,14 @@ function CreatePage() {
       if (!currentAudio.paused) {
         currentAudio.pause();
         setPlayingVersionId("");
-        setListenState(`${targetVersion.title} 已暂停`);
+        setListenState(`${versionLabel(targetVersion)} 已暂停`);
         return;
       }
 
       try {
         await currentAudio.play();
         setPlayingVersionId(targetVersion.id);
-        setListenState(`正在播放 ${targetVersion.title}`);
+        setListenState(`正在播放 ${versionLabel(targetVersion)}`);
       } catch {
         setListenState("浏览器暂时不能播放该音频");
       }
@@ -1908,7 +1957,7 @@ function CreatePage() {
     versionAudioRef.current = nextAudio;
     versionAudioIdRef.current = targetVersion.id;
     setPlayProgress(0);
-    setListenState(`试听 ${targetVersion.title}`);
+    setListenState(`试听 ${versionLabel(targetVersion)}`);
 
     nextAudio.addEventListener("timeupdate", () => {
       const duration = nextAudio.duration || 0;
@@ -1921,7 +1970,7 @@ function CreatePage() {
       if (versionAudioIdRef.current === targetVersion.id) {
         setPlayingVersionId("");
         setPlayProgress(0);
-        setListenState(`${targetVersion.title} 播放完成`);
+        setListenState(`${versionLabel(targetVersion)} 播放完成`);
       }
     });
 
@@ -1936,7 +1985,7 @@ function CreatePage() {
     try {
       await nextAudio.play();
       setPlayingVersionId(targetVersion.id);
-      setListenState(`正在播放 ${targetVersion.title}`);
+      setListenState(`正在播放 ${versionLabel(targetVersion)}`);
     } catch {
       setPlayingVersionId("");
       setListenState("浏览器暂时不能播放该音频");
@@ -2413,7 +2462,32 @@ function CreatePage() {
                 <div className="version-tree-list">
                   {(visibleVersions.length ? visibleVersions : [{ id: "draft_version", title: "V1 原生版", meta: "草稿基线", note: "保存 prompt 后可生成试听版", status: "当前基线", progress: 12 }]).map((version) => (
                     <article key={version.id}>
-                      <span>{version.title}</span>
+                      {editingVersionId === version.id ? (
+                        <input
+                          className="version-rename-input"
+                          value={editingName}
+                          onChange={(event) => setEditingName(event.target.value)}
+                          onBlur={() => void commitRenameVersion(version)}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter") {
+                              void commitRenameVersion(version);
+                            } else if (event.key === "Escape") {
+                              setEditingVersionId("");
+                            }
+                          }}
+                          autoFocus
+                        />
+                      ) : (
+                        <button
+                          type="button"
+                          className="version-title-button"
+                          onClick={() => startRenameVersion(version)}
+                          title="点击重命名版本"
+                        >
+                          <span>{versionLabel(version)}</span>
+                          <Pencil size={13} />
+                        </button>
+                      )}
                       <strong>{version.status}</strong>
                       <p>{version.note}</p>
                     </article>
@@ -2471,20 +2545,37 @@ function CreatePage() {
           {playableVersions.length > 0 && <span className="bottom-player-count">{playableVersions.length}</span>}
         </button>
 
-        {activeVersion?.audioUrl && (
-          <div className="bottom-player-now">
-            <div className="bottom-player-meta">
-              <strong>{activeVersion.title}</strong>
-              <span>{listenState}</span>
+        {activeVersion && (
+          activeVersion.audioUrl ? (
+            <div className="bottom-player-now">
+              <div className="bottom-player-meta">
+                <strong>{versionLabel(activeVersion)}</strong>
+                <span>{listenState}</span>
+              </div>
+              <button
+                className="bottom-player-toggle"
+                onClick={() => void handleListenVersion(activeVersion)}
+                type="button"
+                aria-label={playingVersionId ? "暂停播放" : "继续播放"}
+              >
+                {playingVersionId ? <Pause size={20} /> : <Play size={20} />}
+              </button>
             </div>
-            <button
-              className="bottom-player-toggle"
-              onClick={() => void handleListenVersion(activeVersion)}
-              type="button"
-              aria-label={playingVersionId ? "暂停播放" : "继续播放"}
-            >
-              {playingVersionId ? <Pause size={20} /> : <Play size={20} />}
-            </button>
+          ) : isGenerating ? (
+            <div className="bottom-player-now generating">
+              <div className="bottom-player-meta">
+                <strong>{versionLabel(activeVersion)}</strong>
+                <span>
+                  {activeVersion.status || "生成中"} {Math.round(activeVersion.progress ?? 0)}%
+                </span>
+              </div>
+            </div>
+          ) : null
+        )}
+
+        {isGenerating && (
+          <div className="bottom-player-progress" aria-hidden="true">
+            <span style={{ width: `${Math.max(0, Math.min(100, Math.round(activeVersion?.progress ?? 0)))}%` }} />
           </div>
         )}
       </div>
@@ -2513,7 +2604,7 @@ function CreatePage() {
                       type="button"
                     >
                       <Music2 size={16} />
-                      <span className="demo-list-title">{version.title}</span>
+                      <span className="demo-list-title">{versionLabel(version)}</span>
                       <span className="demo-list-status">{isPlaying ? "播放中" : version.status}</span>
                       {isPlaying ? <Pause size={15} /> : <Play size={15} />}
                     </button>

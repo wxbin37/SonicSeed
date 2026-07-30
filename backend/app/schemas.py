@@ -226,6 +226,7 @@ class DemoTaskRequest(BaseModel):
     referenceBrief: BriefResponse
     lyrics: Optional[str] = Field(default=None, max_length=3500)
     attachments: list[BriefAttachment] = Field(default_factory=list, max_length=12)
+    customName: Optional[str] = None
 
 
 class DemoTaskResponse(BaseModel):
@@ -239,6 +240,11 @@ class DemoTaskResponse(BaseModel):
     provider: Optional[str] = None
     traceId: Optional[str] = None
     createdAt: Optional[str] = None
+    customName: Optional[str] = None
+
+
+class DemoTaskPatchRequest(BaseModel):
+    customName: Optional[str] = None
 
 
 class HealthResponse(BaseModel):

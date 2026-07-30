@@ -17,6 +17,7 @@ from .schemas import (
     CommunityPost,
     CommunityPostCreate,
     CommunityPostSummary,
+    DemoTaskPatchRequest,
     DemoTaskRequest,
     DemoTaskResponse,
     HealthResponse,
@@ -27,6 +28,7 @@ from .schemas import (
     ProjectSummary,
     UploadResponse,
 )
+from .storage import update_demo_task_name
 from .services import (
     add_community_comment,
     build_brief,
@@ -188,6 +190,15 @@ def read_demo_task(task_id: str) -> DemoTaskResponse:
         raise HTTPException(status_code=404, detail="Task not found")
 
     return task
+
+
+@app.patch("/api/demo-tasks/{task_id}", response_model=DemoTaskResponse)
+def patch_demo_task(task_id: str, payload: DemoTaskPatchRequest) -> DemoTaskResponse:
+    record = update_demo_task_name(task_id, payload.customName)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    return record
 
 
 # ===== 作品社区 =====

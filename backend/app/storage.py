@@ -187,6 +187,7 @@ def initialize_database() -> None:
                 """
             )
             ensure_column(connection, "projects", "creator_client_id", "TEXT")
+            ensure_column(connection, "demo_tasks", "custom_name", "TEXT")
 
         _INITIALIZED = True
 
@@ -274,6 +275,7 @@ def demo_task_from_row(row: sqlite3.Row) -> DemoTaskResponse:
         provider=row["provider"],
         traceId=row["trace_id"],
         createdAt=row["created_at"],
+        customName=row.get("custom_name"),
     )
 
 
@@ -499,9 +501,9 @@ def store_demo_task_record(payload: DemoTaskRequest, result: DemoTaskResponse) -
             """
             INSERT INTO demo_tasks (
                 id, project_id, status, message, progress, audio_url, lyrics, provider, trace_id,
-                prompt, reference_brief_json, created_at, updated_at
+                prompt, reference_brief_json, created_at, updated_at, custom_name
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 status = excluded.status,
                 message = excluded.message,
@@ -512,7 +514,8 @@ def store_demo_task_record(payload: DemoTaskRequest, result: DemoTaskResponse) -
                 trace_id = excluded.trace_id,
                 prompt = excluded.prompt,
                 reference_brief_json = excluded.reference_brief_json,
-                updated_at = excluded.updated_at
+                updated_at = excluded.updated_at,
+                custom_name = excluded.custom_name
             """,
             (
                 result.taskId,
@@ -528,10 +531,22 @@ def store_demo_task_record(payload: DemoTaskRequest, result: DemoTaskResponse) -
                 dump_brief(payload.referenceBrief),
                 created_at,
                 now,
+                payload.customName,
             ),
         )
 
     return DemoTaskResponse(**{**dump_model(result), "projectId": payload.projectId, "createdAt": created_at})
+
+
+def update_demo_task_name(task_id: str, name: str | None) -> DemoTaskResponse | None:
+    initialize_database()
+    now = utc_now_label()
+    with connect() as connection:
+        connection.execute(
+            "UPDATE demo_tasks SET custom_name = ?, updated_at = ? WHERE id = ?",
+            (name, now, task_id),
+        )
+    return get_demo_task_record(task_id)
 
 
 def get_demo_task_record(task_id: str) -> Optional[DemoTaskResponse]:
@@ -539,9 +554,9 @@ def get_demo_task_record(task_id: str) -> Optional[DemoTaskResponse]:
     with connect() as connection:
         row = connection.execute(
             """
-            SELECT id, project_id, status, message, progress, audio_url, lyrics, provider, trace_id, created_at
-            FROM demo_tasks
-            WHERE id = ?
+                SELECT id, project_id, status, message, progress, audio_url, lyrics, provider, trace_id, created_at, custom_name
+                FROM demo_tasks
+                WHERE id = ?
             """,
             (task_id,),
         ).fetchone()
@@ -555,7 +570,7 @@ def list_demo_task_records(project_id: Optional[str] = None) -> list[DemoTaskRes
         if project_id:
             rows = connection.execute(
                 """
-                SELECT id, project_id, status, message, progress, audio_url, lyrics, provider, trace_id, created_at
+                SELECT id, project_id, status, message, progress, audio_url, lyrics, provider, trace_id, created_at, custom_name
                 FROM demo_tasks
                 WHERE project_id = ?
                 ORDER BY created_at DESC
@@ -565,7 +580,7 @@ def list_demo_task_records(project_id: Optional[str] = None) -> list[DemoTaskRes
         else:
             rows = connection.execute(
                 """
-                SELECT id, project_id, status, message, progress, audio_url, lyrics, provider, trace_id, created_at
+                SELECT id, project_id, status, message, progress, audio_url, lyrics, provider, trace_id, created_at, custom_name
                 FROM demo_tasks
                 ORDER BY created_at DESC
                 """

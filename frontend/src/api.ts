@@ -34,6 +34,7 @@ export type DemoTaskRequest = {
   referenceBrief: BriefResponse;
   lyrics?: string;
   attachments?: BriefAttachment[];
+  customName?: string;
 };
 
 export type DemoTaskResponse = {
@@ -47,6 +48,7 @@ export type DemoTaskResponse = {
   provider?: string;
   traceId?: string;
   createdAt?: string;
+  customName?: string;
 };
 
 export type ProjectRecord = {
@@ -346,6 +348,24 @@ export async function listDemoTasks(projectId?: string): Promise<DemoTaskRespons
   }
 
   return response.json() as Promise<DemoTaskResponse[]>;
+}
+
+export async function updateDemoTaskName(taskId: string, name: string): Promise<DemoTaskResponse> {
+  if (!API_BASE_URL) {
+    return { taskId, status: "succeeded" } as DemoTaskResponse;
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/demo-tasks/${encodeURIComponent(taskId)}`, {
+    method: "PATCH",
+    headers: communityHeaders(),
+    body: JSON.stringify({ customName: name }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Update demo task name failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<DemoTaskResponse>;
 }
 
 export async function listProjects(): Promise<ProjectRecord[]> {
