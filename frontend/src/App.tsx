@@ -2111,6 +2111,11 @@ function CreatePage() {
             </button>
           </div>
 
+          <button className="history-new" onClick={handleCreateProject} type="button">
+            <Plus size={16} />
+            新建创作
+          </button>
+
           <div className="history-list">
             {projects.length ? (
               projects.map((project) => (
@@ -2143,15 +2148,10 @@ function CreatePage() {
               <article className="empty-state">
                 <ListMusic size={18} />
                 <strong>还没有创作历史</strong>
-                <p>发送内容或点击「生成作品」后会自动创建。</p>
+                <p>点击上方「新建创作」，或发送内容后自动创建。</p>
               </article>
             )}
           </div>
-
-          <button className="history-new" onClick={handleCreateProject} type="button">
-            <Plus size={16} />
-            新建创作
-          </button>
         </aside>
 
         {!historyCollapsed && (

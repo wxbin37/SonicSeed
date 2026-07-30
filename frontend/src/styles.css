@@ -5276,10 +5276,12 @@ h3 {
 
 .history-new {
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
   justify-content: center;
   gap: var(--space-200);
   width: 100%;
+  min-height: 48px;
   padding: var(--space-300);
   border: 1px dashed var(--divider);
   border-radius: var(--corner-round);
