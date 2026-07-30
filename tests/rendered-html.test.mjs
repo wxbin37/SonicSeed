@@ -11,7 +11,8 @@ test("front-end defines the requested product routes", async () => {
 
   assert.match(html, /<html lang="zh-CN"/);
   assert.match(html, /<title>声因 \| AI 协作音乐创作空间<\/title>/);
-  assert.match(app, /<h1>声因<\/h1>/);
+  assert.match(app, /Mus<span>eed<\/span>/);
+  assert.match(app, /让每一刻灵感/);
   assert.match(app, /灵感库/);
   assert.match(app, /开始创作/);
   assert.match(app, /创作历史/);

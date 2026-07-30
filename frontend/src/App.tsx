@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   ArrowLeft,
@@ -839,21 +839,107 @@ const graphLinks = [
 ] as const;
 
 function HomePage() {
+  const homeRef = useRef<HTMLElement>(null);
+  const [activeEntry, setActiveEntry] = useState<"library" | "create" | null>(null);
+  const [entryClicked, setEntryClicked] = useState(false);
+
+  function handlePointerMove(event: ReactPointerEvent<HTMLElement>) {
+    if (event.pointerType === "touch") return;
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const x = (event.clientX - bounds.left) / bounds.width - 0.5;
+    const y = (event.clientY - bounds.top) / bounds.height - 0.5;
+    homeRef.current?.style.setProperty("--pointer-x", x.toFixed(3));
+    homeRef.current?.style.setProperty("--pointer-y", y.toFixed(3));
+  }
+
+  function resetPointer() {
+    homeRef.current?.style.setProperty("--pointer-x", "0");
+    homeRef.current?.style.setProperty("--pointer-y", "0");
+  }
+
+  function handleEntryClick(event: ReactMouseEvent<HTMLAnchorElement>, entry: "library" | "create", href: string) {
+    event.preventDefault();
+    if (entryClicked) return;
+    setActiveEntry(entry);
+    setEntryClicked(true);
+    const delay = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 450;
+    window.setTimeout(() => window.location.assign(href), delay);
+  }
+
+  const waveBars = [12, 22, 34, 18, 28, 14, 24, 38, 18, 30, 12];
+
   return (
-    <main className="home-shell" aria-label="声因入口">
-      <section className="entry-panel" aria-label="主入口">
-        <h1>声因</h1>
-        <nav className="home-actions" aria-label="页面入口">
-          <a className="entrance-button secondary" href="/library">
-            <Library size={20} />
-            灵感库
-          </a>
-          <a className="entrance-button primary" href="/create">
-            <Play size={20} />
-            开始创作
-          </a>
-        </nav>
+    <main
+      className="home-shell"
+      aria-label="Museed 入口"
+      ref={homeRef}
+      onPointerMove={handlePointerMove}
+      onPointerLeave={resetPointer}
+    >
+      <header className="home-header">
+        <a className="home-brand" href="/" aria-label="Museed 首页">Mus<span>eed</span></a>
+        <p>A creative space for unfinished ideas</p>
+      </header>
+
+      <section className="home-stage" aria-label="主入口">
+        <div className="home-notes" aria-hidden="true">
+          <span>♪</span><span>♫</span><span>·</span><span>♩</span>
+        </div>
+
+        <section
+          className="home-disc"
+          data-active={activeEntry ?? undefined}
+          data-clicked={entryClicked ? "true" : undefined}
+          aria-label="Museed 集中入口"
+        >
+          <span className="home-active-arc" aria-hidden="true" />
+          <div className="home-orbit" aria-hidden="true"><i /><i /></div>
+
+          <div className="home-copy">
+            <p className="home-eyebrow">Music / Memory / Motion</p>
+            <h1>让每一刻灵感<br /><span>都有机会成为一首歌</span></h1>
+            <p className="home-description">记录、整理、延展你的声音碎片。<br />从一个念头开始，和 Museed 一起把它做完。</p>
+          </div>
+
+          <svg className="home-link-wave" viewBox="0 0 420 80" aria-hidden="true">
+            <path d="M210 8 C210 35 272 22 307 59 C328 81 365 68 397 50" />
+          </svg>
+
+          <nav className="home-actions" aria-label="页面入口">
+            <a
+              className="home-entrance library-entrance"
+              href="/library"
+              onMouseEnter={() => setActiveEntry("library")}
+              onMouseLeave={() => { if (!entryClicked) setActiveEntry(null); }}
+              onFocus={() => setActiveEntry("library")}
+              onBlur={() => { if (!entryClicked) setActiveEntry(null); }}
+              onClick={(event) => handleEntryClick(event, "library", "/library")}
+            >
+              <span className="entrance-ripples" aria-hidden="true"><i /><i /><i /></span>
+              <span className="entrance-content"><Library size={22} /><strong>灵感库</strong><small>收集每个瞬间</small></span>
+            </a>
+
+            <a
+              className="home-entrance create-entrance"
+              href="/create"
+              onMouseEnter={() => setActiveEntry("create")}
+              onMouseLeave={() => { if (!entryClicked) setActiveEntry(null); }}
+              onFocus={() => setActiveEntry("create")}
+              onBlur={() => { if (!entryClicked) setActiveEntry(null); }}
+              onClick={(event) => handleEntryClick(event, "create", "/create")}
+            >
+              <span className="entrance-ripples" aria-hidden="true"><i /><i /><i /></span>
+              <span className="entrance-content"><Play size={22} fill="currentColor" /><strong>开始创作</strong><small>把想法变成 Demo</small></span>
+            </a>
+          </nav>
+
+          <div className="home-wave" aria-hidden="true">
+            {waveBars.map((height, index) => <i key={index} style={{ "--bar-height": `${height}px`, "--bar-delay": `${index * -0.11}s` } as CSSProperties} />)}
+          </div>
+        </section>
       </section>
+
+      <footer className="home-footer"><span>© 2026 MUSEED</span><span>移动光标，感受律动</span></footer>
     </main>
   );
 }
