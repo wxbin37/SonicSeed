@@ -35,7 +35,6 @@ import {
   Play,
   Plus,
   Send,
-  Server,
   Share2,
   SlidersHorizontal,
   Sparkles,
@@ -1003,6 +1002,7 @@ function CreatePage() {
   const [listenState, setListenState] = useState("暂无可试听版本");
   const [playingVersionId, setPlayingVersionId] = useState("");
   const [playProgress, setPlayProgress] = useState(0);
+  const [playerOpen, setPlayerOpen] = useState(false);
   const [libraryCount, setLibraryCount] = useState(() => (hasApiConnection() ? 0 : readStorage<InspirationCard[]>(STORAGE_KEYS.library, []).length));
   const [libraryCards, setLibraryCards] = useState<InspirationCard[]>(() =>
     hasApiConnection() ? [] : readStorage<InspirationCard[]>(STORAGE_KEYS.library, []),
@@ -1045,6 +1045,10 @@ function CreatePage() {
   const activeVersion = useMemo(
     () => visibleVersions.find((version) => version.id === activeVersionId) ?? visibleVersions[0],
     [activeVersionId, visibleVersions],
+  );
+  const playableVersions = useMemo(
+    () => visibleVersions.filter((version) => version.audioUrl),
+    [visibleVersions],
   );
   const isActiveVersionPlaying = Boolean(activeVersion && playingVersionId === activeVersion.id);
 
@@ -2069,7 +2073,7 @@ function CreatePage() {
               <article className="empty-state">
                 <ListMusic size={18} />
                 <strong>还没有创作历史</strong>
-                <p>发送内容、加入灵感库或创作版本后会自动创建。</p>
+                <p>发送内容或点击「生成作品」后会自动创建。</p>
               </article>
             )}
           </div>
@@ -2201,103 +2205,26 @@ function CreatePage() {
                   />
 
                   <div className="composer-actions">
-                    <label className="attach-button">
-                      <Paperclip size={17} />
-                      <span>附件</span>
+                    <label className="attach-button compact" aria-label="添加附件">
+                      <Paperclip size={16} />
                       <input accept="audio/*,image/*,video/*,.mp3,.m4a,.wav,.webm,.mp4,.mov" multiple onChange={handleAttachmentChange} type="file" />
                     </label>
-                    <button className="utility-button" disabled={!canSubmit} onClick={() => void handleSaveInspiration()} type="button">
-                      <Library size={16} />
-                      加入灵感库
-                    </button>
-                    <button className="utility-button" onClick={() => void handleCreateVersion()} type="button">
-                      <Headphones size={16} />
-                      创作版本
-                    </button>
-                    <button className="send-button" disabled={!canSubmit || chatThinking} onClick={() => void handleSend()} type="button">
-                      <Send size={16} />
-                      {chatThinking ? "思考中" : "发送"}
-                    </button>
+                    <div className="composer-actions-right">
+                      <button className="utility-button compact" onClick={() => void handleCreateVersion()} type="button">
+                        <Headphones size={15} />
+                        生成作品
+                      </button>
+                      <button className="send-button compact" disabled={!canSubmit || chatThinking} onClick={() => void handleSend()} type="button">
+                        <Send size={15} />
+                        {chatThinking ? "思考中" : "发送"}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
 
-              <aside className="version-rail" aria-label="历史版本试听">
-                <button
-                  className={`version-listen-button ${isActiveVersionPlaying ? "is-playing" : ""}`}
-                  onClick={() => void handleListenVersion()}
-                  type="button"
-                  aria-label={isActiveVersionPlaying ? "暂停当前版本" : "试听当前版本"}
-                >
-                  {isActiveVersionPlaying ? <Pause size={24} /> : <Headphones size={24} />}
-                </button>
-                <div className="version-rail-summary">
-                  <p>{listenState}</p>
-                  <strong>{activeVersion?.title ?? "暂无版本"}</strong>
-                  <span>{activeVersion ? `${activeVersion.status} · ${activeVersion.progress}%` : "生成后可听"}</span>
-                </div>
-
-                <div className="version-mini-list" aria-label="版本迭代记录">
-                  {visibleVersions.length ? (
-                    visibleVersions.slice(0, 5).map((version) => {
-                      const isSelected = activeVersion?.id === version.id;
-                      const isPlaying = playingVersionId === version.id;
-                      const clampedProgress = Math.min(100, Math.max(0, Math.round(version.progress)));
-
-                      return (
-                        <button
-                          key={version.id}
-                          className="version-mini-item"
-                          data-active={isSelected}
-                          data-playing={isPlaying}
-                          onClick={() => void handleListenVersion(version)}
-                          type="button"
-                        >
-                          <span className="version-mini-index">{version.title.replace("版本 ", "V")}</span>
-                          <span className="version-mini-copy">
-                            <strong>{isPlaying ? "正在播放" : version.status}</strong>
-                            <em>{version.audioUrl ? "可试听" : version.note}</em>
-                          </span>
-                          {isPlaying ? <Pause size={15} /> : <Play size={15} />}
-                          <span className="version-mini-progress" aria-hidden="true">
-                            <span style={{ width: `${clampedProgress}%` }} />
-                          </span>
-                        </button>
-                      );
-                    })
-                  ) : (
-                    <p className="version-empty-copy">生成试听版后会出现在这里。</p>
-                  )}
-                  {visibleVersions.length > 5 && <span className="version-more">还有 {visibleVersions.length - 5} 个历史版本</span>}
-                </div>
-              </aside>
             </div>
           </section>
-
-          <aside className="analysis-panel" aria-label="AI 标签">
-            <div className="panel-heading compact">
-              <div>
-                <p>实时标签</p>
-                <h2>AI 标签</h2>
-              </div>
-              <span className="analysis-dot" aria-hidden="true" />
-            </div>
-
-            <span className="backend-chip">
-              <Server size={14} />
-              {getApiConnectionLabel()}
-            </span>
-
-            <div className="analysis-list">
-              {analysisTags.map((item) => (
-                <article className="analysis-item" key={item.label}>
-                  <span>{item.label}</span>
-                  <strong>{item.value}</strong>
-                  <p>{item.detail}</p>
-                </article>
-              ))}
-            </div>
-          </aside>
         </section>
       </section>
 
@@ -2492,26 +2419,72 @@ function CreatePage() {
         </div>
       )}
 
-      {activeVersion?.audioUrl && (
-        <div className="mini-player" aria-label="迷你播控栏">
-          <div className="mini-cover" aria-hidden="true">
-            <Music2 size={20} />
+      <div className="bottom-player">
+        <button
+          className="bottom-player-trigger"
+          onClick={() => setPlayerOpen((open) => !open)}
+          type="button"
+          aria-expanded={playerOpen}
+          aria-label="试听 Demo 列表"
+        >
+          <Music2 size={20} />
+          <span>试听 Demo</span>
+          {playableVersions.length > 0 && <span className="bottom-player-count">{playableVersions.length}</span>}
+        </button>
+
+        {activeVersion?.audioUrl && (
+          <div className="bottom-player-now">
+            <div className="bottom-player-meta">
+              <strong>{activeVersion.title}</strong>
+              <span>{listenState}</span>
+            </div>
+            <button
+              className="bottom-player-toggle"
+              onClick={() => void handleListenVersion(activeVersion)}
+              type="button"
+              aria-label={playingVersionId ? "暂停播放" : "继续播放"}
+            >
+              {playingVersionId ? <Pause size={20} /> : <Play size={20} />}
+            </button>
           </div>
-          <div className="mini-meta">
-            <strong>{activeVersion.title}</strong>
-            <span>{listenState}</span>
-            <span className="mini-progress" aria-hidden="true">
-              <span style={{ width: `${playProgress || activeVersion.progress}%` }} />
-            </span>
+        )}
+      </div>
+
+      {playerOpen && (
+        <div className="demo-list-panel" role="dialog" aria-label="可播放 Demo 列表">
+          <div className="demo-list-head">
+            <span>可试听 Demo</span>
+            <button className="demo-list-close" onClick={() => setPlayerOpen(false)} type="button" aria-label="关闭">
+              <X size={16} />
+            </button>
           </div>
-          <button
-            className="mini-toggle"
-            onClick={() => void handleListenVersion(activeVersion)}
-            type="button"
-            aria-label={playingVersionId ? "暂停播放" : "继续播放"}
-          >
-            {playingVersionId ? <Pause size={20} /> : <Play size={20} />}
-          </button>
+          {playableVersions.length ? (
+            <ul className="demo-list">
+              {playableVersions.map((version) => {
+                const isPlaying = playingVersionId === version.id;
+                return (
+                  <li key={version.id}>
+                    <button
+                      className="demo-list-item"
+                      data-playing={isPlaying}
+                      onClick={() => {
+                        void handleListenVersion(version);
+                        setPlayerOpen(false);
+                      }}
+                      type="button"
+                    >
+                      <Music2 size={16} />
+                      <span className="demo-list-title">{version.title}</span>
+                      <span className="demo-list-status">{isPlaying ? "播放中" : version.status}</span>
+                      {isPlaying ? <Pause size={15} /> : <Play size={15} />}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <p className="demo-list-empty">还没有可试听的 Demo，去「生成作品」生成吧。</p>
+          )}
         </div>
       )}
     </main>
@@ -3720,7 +3693,6 @@ export default function App() {
       ) : (
         <HomePage />
       )}
-      <TabBar />
     </>
   );
 }
