@@ -56,7 +56,6 @@ import {
   getApiConnectionLabel,
   getCommunityPost,
   getDemoTask,
-  getProjectWorkspace,
   hasApiConnection,
   listCommunityPosts,
   listDemoTasks,
@@ -67,6 +66,7 @@ import {
   saveProject,
   saveProjectWorkspace,
   toggleCommunityLike,
+  updateDemoTaskName,
   uploadAttachment,
   uploadAudio,
   type AnalysisTag,
@@ -1217,47 +1217,15 @@ function CreatePage() {
     }
 
     setLoadedWorkspaceProjectId("");
-    projectWorkspaceSyncRef.current = "";
-    setAnalysisState("正在恢复完整对话");
-
-    if (!hasApiConnection()) {
-      const localWorkspaces = readStorage<Record<string, WorkbenchSnapshot>>(STORAGE_KEYS.workspaces, {});
-      const localWorkspace = localWorkspaces[activeProject.id];
-      if (localWorkspace) {
-        applyWorkbenchSnapshot(localWorkspace as Record<string, unknown>, "已恢复完整对话");
-      } else {
-        resetWorkbenchForProject();
-      }
-      setLoadedWorkspaceProjectId(activeProject.id);
-      return;
-    }
-
-    let cancelled = false;
-
-    void getProjectWorkspace(activeProject.id)
-      .then((workspace) => {
-        if (cancelled) {
-          return;
-        }
-
-        if (workspace && Object.keys(workspace.workbench).length) {
-          applyWorkbenchSnapshot(workspace.workbench, "已恢复完整对话");
-        } else {
-          resetWorkbenchForProject();
-        }
-
-        setLoadedWorkspaceProjectId(activeProject.id);
-      })
-      .catch(() => {
-        if (!cancelled) {
-          resetWorkbenchForProject("完整对话恢复失败");
-          setLoadedWorkspaceProjectId(activeProject.id);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
+    // 关闭“进入项目自动恢复对话”：每次进入都从空白聊天框开始
+    resetWorkbenchForProject();
+    // 把同步标记置为当前（空白）状态，避免下方自动保存把已存的旧对话覆盖成空
+    projectWorkspaceSyncRef.current = JSON.stringify({
+      projectId: activeProject.id,
+      clientId,
+      snapshot: buildWorkbenchSnapshot(),
+    });
+    setLoadedWorkspaceProjectId(activeProject.id);
   }, [activeProject.id]);
 
   useEffect(() => {
@@ -1279,7 +1247,13 @@ function CreatePage() {
         setSelectedInspirations(remoteCards.filter((card) => selectedInspirationIds.includes(card.id)));
         setLibraryCards(remoteCards);
         setVersions(remoteVersions);
-        setActiveVersionId((current) => current || (remoteVersions[0]?.id ?? ""));
+        // 默认进入“开始创作”时落在最新的创作记录（版本按 createdAt 升序，末尾即最新）
+        const latestVersion = remoteVersions[remoteVersions.length - 1];
+        const sharedProjectId = getSharedProjectId();
+        setActiveVersionId((current) => current || (latestVersion?.id ?? ""));
+        if (latestVersion?.projectId) {
+          setActiveProjectId((current) => sharedProjectId || latestVersion.projectId || current);
+        }
         writeStorage(STORAGE_KEYS.library, remoteCards);
       })
       .catch(() => {
