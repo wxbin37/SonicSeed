@@ -2952,7 +2952,6 @@ function InspirationPreview({ inspiration }: { inspiration: Inspiration }) {
             }}
             type="button"
           >
-            {showFullSummary ? "收起" : "展开"}
             <ChevronDown size={13} />
           </button>
         )}
