@@ -1,0 +1,103 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000" role="img" aria-labelledby="title desc">
+  <title id="title">音芽 Museed 市集产品示意图</title>
+  <desc id="desc">散落的歌词、旋律、照片和情绪灵感，通过AI关联汇聚成一株可播放的音乐嫩芽。</desc>
+  <defs>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#182622" flood-opacity="0.12"/>
+    </filter>
+    <style>
+      .cn { font-family: "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif; }
+      .round { stroke-linecap: round; stroke-linejoin: round; }
+    </style>
+  </defs>
+
+  <rect width="1600" height="1000" fill="#F8F7F2"/>
+  <circle cx="1440" cy="126" r="72" fill="#FF725E" opacity="0.14"/>
+  <circle cx="136" cy="870" r="44" fill="#56B887" opacity="0.18"/>
+
+  <g class="cn" fill="#182622">
+    <text x="92" y="104" font-size="30" font-weight="700">音芽</text>
+    <text x="164" y="104" font-size="30" font-weight="500" fill="#56B887">Museed</text>
+    <text x="92" y="174" font-size="54" font-weight="800">让散落的灵感，长成一首歌</text>
+    <text x="94" y="220" font-size="23" fill="#58645F">记录 · 连接 · 重新听见</text>
+  </g>
+
+  <!-- 灵感碎片 -->
+  <g filter="url(#shadow)" class="cn">
+    <g transform="rotate(-7 218 382)">
+      <rect x="92" y="300" width="252" height="164" rx="8" fill="#FFF" stroke="#182622" stroke-width="3"/>
+      <circle cx="126" cy="338" r="10" fill="#FF725E"/>
+      <text x="150" y="346" font-size="20" font-weight="700" fill="#182622">一句歌词</text>
+      <text x="124" y="393" font-size="19" fill="#58645F">“把告别说得很轻，</text>
+      <text x="124" y="424" font-size="19" fill="#58645F">像明天还会见。”</text>
+    </g>
+    <g transform="rotate(6 254 580)">
+      <rect x="112" y="506" width="284" height="144" rx="8" fill="#FFF" stroke="#182622" stroke-width="3"/>
+      <circle cx="148" cy="548" r="10" fill="#56B887"/>
+      <text x="172" y="556" font-size="20" font-weight="700" fill="#182622">一段哼唱</text>
+      <path d="M148 602 h18 l10-26 14 50 14-38 13 20 12-48 15 63 13-30 13 9 16-35 14 35 h34" fill="none" stroke="#56B887" stroke-width="5" class="round"/>
+    </g>
+    <g transform="rotate(-4 257 765)">
+      <rect x="136" y="684" width="242" height="162" rx="8" fill="#FFF" stroke="#182622" stroke-width="3"/>
+      <rect x="158" y="708" width="198" height="92" rx="4" fill="#202E35"/>
+      <path d="M158 777 L224 732 L271 760 L310 724 L356 760 V800 H158Z" fill="#5A7580"/>
+      <circle cx="319" cy="734" r="13" fill="#FFCA5C"/>
+      <text x="158" y="828" font-size="19" font-weight="700" fill="#182622">雨夜里的一张照片</text>
+    </g>
+  </g>
+
+  <text x="104" y="920" class="cn" font-size="24" font-weight="700" fill="#58645F">散落的灵感碎片</text>
+
+  <!-- 关联网络与AI核心 -->
+  <g fill="none" stroke="#88948F" stroke-width="3" stroke-dasharray="8 12" class="round">
+    <path d="M344 384 C510 372 520 466 671 488"/>
+    <path d="M396 574 C520 572 560 538 671 514"/>
+    <path d="M378 756 C530 724 557 606 690 544"/>
+    <path d="M886 503 C1014 472 1063 406 1172 402"/>
+    <path d="M884 536 C1014 584 1052 640 1168 648"/>
+  </g>
+  <g fill="#F8F7F2" stroke="#88948F" stroke-width="3">
+    <circle cx="474" cy="410" r="9"/><circle cx="517" cy="584" r="9"/><circle cx="526" cy="695" r="9"/>
+    <circle cx="1013" cy="469" r="9"/><circle cx="1023" cy="588" r="9"/>
+  </g>
+
+  <g filter="url(#shadow)">
+    <circle cx="780" cy="516" r="120" fill="#182622"/>
+    <circle cx="780" cy="516" r="98" fill="#223630" stroke="#56B887" stroke-width="4"/>
+    <path d="M718 536 C742 484 772 557 794 497 C813 444 832 481 847 450" fill="none" stroke="#FFCA5C" stroke-width="10" class="round"/>
+    <circle cx="718" cy="536" r="11" fill="#FF725E"/>
+    <circle cx="794" cy="497" r="11" fill="#56B887"/>
+    <circle cx="847" cy="450" r="11" fill="#FFCA5C"/>
+    <text x="780" y="588" text-anchor="middle" class="cn" font-size="22" font-weight="700" fill="#FFF">AI 理解与连接</text>
+  </g>
+
+  <!-- 音乐嫩芽 -->
+  <g transform="translate(1160 286)">
+    <ellipse cx="174" cy="522" rx="224" ry="42" fill="#D9DED8" opacity="0.7"/>
+    <path d="M170 522 C164 438 174 348 157 260 C151 228 134 202 120 178" fill="none" stroke="#24724C" stroke-width="18" class="round"/>
+    <path d="M154 284 C92 269 52 226 42 174 C104 172 151 207 165 264Z" fill="#56B887" stroke="#182622" stroke-width="4" class="round"/>
+    <path d="M161 340 C225 321 268 273 278 217 C211 219 163 255 151 317Z" fill="#8CD6A9" stroke="#182622" stroke-width="4" class="round"/>
+    <path d="M118 177 C87 144 86 92 113 56 C155 83 168 123 145 170Z" fill="#FF725E" stroke="#182622" stroke-width="4" class="round"/>
+    <circle cx="105" cy="118" r="13" fill="#FFF"/>
+    <path d="M104 118 v-38 l29-8 v35" fill="none" stroke="#182622" stroke-width="7" class="round"/>
+    <circle cx="98" cy="121" r="10" fill="#182622"/>
+    <circle cx="128" cy="109" r="10" fill="#182622"/>
+
+    <g filter="url(#shadow)">
+      <rect x="12" y="396" width="316" height="102" rx="8" fill="#FFF" stroke="#182622" stroke-width="3"/>
+      <circle cx="62" cy="447" r="27" fill="#FF725E"/>
+      <path d="M55 432 L76 447 L55 462Z" fill="#FFF"/>
+      <path d="M105 449 h12 l7-20 10 41 10-31 10 19 10-29 11 38 10-18 10 10 9-25 12 15 h62" fill="none" stroke="#56B887" stroke-width="4" class="round"/>
+    </g>
+  </g>
+
+  <g class="cn" text-anchor="middle">
+    <text x="1334" y="856" font-size="26" font-weight="800" fill="#182622">可试听、可演化的 Demo</text>
+    <text x="1334" y="894" font-size="21" fill="#58645F">每一首歌，都从一颗灵感种子开始</text>
+  </g>
+
+  <g class="cn" transform="translate(534 864)">
+    <rect width="494" height="62" rx="31" fill="#182622"/>
+    <text x="247" y="41" text-anchor="middle" font-size="23" font-weight="700" fill="#FFF">记录灵感  →  发现关联  →  生成音乐</text>
+  </g>
+</svg>
