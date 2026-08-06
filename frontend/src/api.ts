@@ -218,7 +218,7 @@ function localBrief(payload: BriefRequest): BriefResponse {
       },
       {
         label: "场景",
-        value: cityTone ? "雨夜、出租车、霓虹、站台" : "夜晚、房间、低光、近距离人声",
+        value: cityTone ? "雨夜、出租车、霓虹、站台" : "夜晚、房间、低光、近距离人声1",
         detail: "可以提取环境声作为 Intro 或段落过渡",
       },
       {
